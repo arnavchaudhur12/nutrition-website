@@ -18,6 +18,15 @@ class OrderRepository:
         result = self.db.execute(select(Order).options(selectinload(Order.items)).order_by(Order.created_at.desc()))
         return list(result.scalars().all())
 
+    def list_orders_by_email(self, email: str) -> list[Order]:
+        result = self.db.execute(
+            select(Order)
+            .where(Order.email == email)
+            .options(selectinload(Order.items))
+            .order_by(Order.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     def aggregate_total_revenue(self) -> float:
         result = self.db.execute(select(func.coalesce(func.sum(Order.total_amount), 0)))
         return float(result.scalar_one())

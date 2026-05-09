@@ -4,6 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.models.order import Order, OrderItem
+from app.models.user import User
 from app.repositories.order import OrderRepository
 from app.repositories.product import ProductRepository
 from app.schemas.order import OrderCreateRequest
@@ -85,6 +86,9 @@ class OrderService:
             "payment": payment,
         }
 
+    def list_customer_orders(self, user: User) -> list[Order]:
+        return self.orders.list_orders_by_email(user.email)
+
     @staticmethod
     def _build_email_body(order: Order) -> str:
         rows = "".join(
@@ -108,4 +112,3 @@ class OrderService:
             f"Phone: {order.phone_number}<br/>"
             f"Address: {order.delivery_address}</p>"
         )
-

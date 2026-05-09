@@ -6,13 +6,15 @@ type HeaderProps = {
   onAccountClick: () => void;
   onCartClick: () => void;
   cartCount: number;
+  profileInitial?: string | null;
 };
 
 export function Header({
   onMenuClick,
   onAccountClick,
   onCartClick,
-  cartCount
+  cartCount,
+  profileInitial
 }: HeaderProps) {
   return (
     <header className="topbar">
@@ -30,7 +32,7 @@ export function Header({
 
       <div className="topbar-actions">
         <button className="icon-button" onClick={onAccountClick} aria-label="Account">
-          <Icon name="account" />
+          {profileInitial ? <span className="profile-initial">{profileInitial}</span> : <Icon name="account" />}
         </button>
         <button className="icon-button cart-button" onClick={onCartClick} aria-label="Cart">
           <Icon name="cart" />

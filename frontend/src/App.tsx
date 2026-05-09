@@ -7,6 +7,7 @@ import { HeroCarousel } from "./components/HeroCarousel";
 import { ProductCard } from "./components/ProductCard";
 import { CheckoutSection } from "./components/CheckoutSection";
 import { InfoSections } from "./components/InfoSections";
+import { useAuth } from "./context/AuthContext";
 import { products } from "./data/products";
 import { useCart } from "./context/CartContext";
 
@@ -15,6 +16,7 @@ export default function App() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const { itemCount } = useCart();
+  const { user } = useAuth();
 
   return (
     <div className="app-shell">
@@ -27,6 +29,7 @@ export default function App() {
         onAccountClick={() => setAccountOpen(true)}
         onCartClick={() => setCartOpen(true)}
         cartCount={itemCount}
+        profileInitial={user?.initial ?? null}
       />
 
       <main>
@@ -56,4 +59,3 @@ export default function App() {
     </div>
   );
 }
-
