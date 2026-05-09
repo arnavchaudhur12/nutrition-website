@@ -10,5 +10,6 @@ __pycache__
 backend/.env
 frontend/.env
 backend/uploads
+backend/lagads_nutrition.db
+frontend/*.tsbuildinfo
 alembic.ini
-
