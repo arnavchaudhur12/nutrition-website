@@ -1,0 +1,31 @@
+from fastapi import Depends, Header, HTTPException, status
+from jose import JWTError, jwt
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.core.config import get_settings
+from app.db.session import get_db
+from app.models.user import User
+
+
+def get_current_admin(
+    authorization: str = Header(default=""),
+    db: Session = Depends(get_db),
+) -> User:
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token.")
+
+    token = authorization.replace("Bearer ", "", 1)
+    settings = get_settings()
+
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except JWTError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token.") from exc
+
+    email = payload.get("sub")
+    user = db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required.")
+    return user
+

@@ -1,0 +1,14 @@
+.DS_Store
+node_modules
+dist
+.vite
+.venv
+__pycache__
+.pytest_cache
+.mypy_cache
+.coverage
+backend/.env
+frontend/.env
+backend/uploads
+alembic.ini
+
