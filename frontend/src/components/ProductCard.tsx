@@ -6,14 +6,26 @@ export function ProductCard({ product }: { product: Product }) {
   const { addItem } = useCart();
   const [variantId, setVariantId] = useState(product.variants[0].id);
   const [quantity, setQuantity] = useState(1);
+  const [imageIndex, setImageIndex] = useState(0);
 
   const variant = product.variants.find((item) => item.id === variantId) ?? product.variants[0];
   const dynamicTotal = variant.sellingPrice * quantity;
+  const visibleImage = product.images[imageIndex] ?? product.image;
 
   return (
     <article className="product-card" id={product.id}>
-      <div className="product-visual" style={{ background: `linear-gradient(135deg, ${product.accent}, #fff4e5)` }}>
-        <img src={product.image} alt={product.flavour} />
+      <div className="product-visual">
+        <img src={visibleImage} alt={product.flavour} />
+        {product.images.length > 1 ? (
+          <button
+            type="button"
+            className="carousel-arrow carousel-arrow-right product-carousel-arrow"
+            aria-label={`Show next image for ${product.flavour}`}
+            onClick={() => setImageIndex((current) => (current + 1) % product.images.length)}
+          >
+            ›
+          </button>
+        ) : null}
       </div>
       <div className="product-body">
         <p className="eyebrow">Peanut Butter</p>
@@ -74,4 +86,3 @@ export function ProductCard({ product }: { product: Product }) {
     </article>
   );
 }
-

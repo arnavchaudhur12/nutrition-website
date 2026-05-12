@@ -69,7 +69,7 @@ select {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 0.75rem;
-  font-weight: 700;
+  font-weight: 900;
 }
 
 .brand-lockup h1,
@@ -134,24 +134,56 @@ main {
 
 .hero {
   display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 2rem;
-  align-items: center;
-  padding: 2rem;
+  grid-template-columns: 1fr;
+  gap: 0;
+  align-items: end;
+  padding: 2.5rem;
   border-radius: 32px;
-  background: linear-gradient(135deg, #113d40 0%, #0d5155 58%, #ff9f3d 150%);
-  color: white;
+  color: #1d120f;
   overflow: hidden;
+  position: relative;
+  min-height: 540px;
+}
+
+.hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.hero-background-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  z-index: 0;
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 2;
+  max-width: min(52%, 720px);
 }
 
 .hero-copy h2 {
   font-size: clamp(2.5rem, 5vw, 5rem);
   line-height: 0.92;
   max-width: 12ch;
+  font-weight: 900;
+  color: #1d120f;
+  text-shadow: 0 1px 6px rgba(255, 255, 255, 0.15);
 }
 
 .hero-copy p {
   max-width: 60ch;
+  font-weight: 800;
+  color: #1d120f;
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.12);
 }
 
 .hero-actions {
@@ -163,34 +195,25 @@ main {
 }
 
 .hero-offer {
-  font-weight: 600;
-}
-
-.hero-visual {
-  position: relative;
-  min-height: 420px;
-}
-
-.hero-visual img {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  transform: scale(1.08) rotate(-3deg);
-  filter: drop-shadow(0 20px 35px rgba(0, 0, 0, 0.22));
+  font-weight: 900;
+  color: #1d120f;
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.12);
 }
 
 .hero-card {
   position: absolute;
-  right: 1rem;
-  bottom: 1rem;
+  right: 1.5rem;
+  bottom: 1.5rem;
   display: grid;
   gap: 0.35rem;
   padding: 1rem 1.2rem;
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(255, 255, 255, 0.18);
   backdrop-filter: blur(14px);
+  z-index: 2;
+  color: #1d120f;
+  font-weight: 900;
+  text-shadow: 0 1px 5px rgba(255, 255, 255, 0.12);
 }
 
 .pill {
@@ -200,10 +223,11 @@ main {
   padding: 0.9rem 1.25rem;
   border-radius: 999px;
   border: 2px solid var(--ink);
-  font-weight: 700;
+  font-weight: 900;
   min-width: 140px;
   background: white;
   color: var(--ink);
+  text-shadow: none;
 }
 
 .pill-primary {
@@ -237,6 +261,15 @@ main {
   margin-top: 1.5rem;
 }
 
+.catalog-message {
+  margin: 0;
+  padding: 1.25rem 1.5rem;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid var(--border);
+  color: var(--muted);
+}
+
 .product-card {
   display: grid;
   grid-template-columns: minmax(260px, 340px) 1fr;
@@ -248,16 +281,39 @@ main {
 
 .product-visual {
   display: flex;
+  position: relative;
   align-items: center;
   justify-content: center;
-  min-height: 360px;
-  padding: 2rem;
+  min-height: 420px;
+  padding: 1rem 0;
 }
 
 .product-visual img {
   width: 100%;
-  max-width: 280px;
+  max-width: 320px;
+  max-height: 420px;
   object-fit: contain;
+}
+
+.carousel-arrow {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 62, 65, 0.92);
+  color: white;
+  font-size: 2rem;
+  line-height: 1;
+  cursor: pointer;
+  box-shadow: 0 12px 24px rgba(15, 62, 65, 0.2);
+}
+
+.product-carousel-arrow {
+  right: 1rem;
 }
 
 .product-body {
@@ -582,6 +638,21 @@ main {
   margin-top: 0.5rem;
 }
 
+.admin-image-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.admin-image-slot {
+  display: grid;
+  gap: 0.65rem;
+  padding: 1rem;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: #fffaf3;
+}
+
 .variant-editor {
   display: grid;
   gap: 0.8rem;
@@ -643,7 +714,8 @@ main {
 
   .metrics-grid,
   .admin-layout,
-  .variant-row {
+  .variant-row,
+  .admin-image-grid {
     grid-template-columns: 1fr;
   }
 
@@ -656,8 +728,13 @@ main {
     grid-template-columns: 1fr;
   }
 
-  .hero-visual {
-    min-height: 320px;
+  .hero {
+    min-height: 480px;
+    padding: 1.75rem;
+  }
+
+  .hero-copy {
+    max-width: 100%;
   }
 }
 

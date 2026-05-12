@@ -1,20 +1,21 @@
-import { products } from "../data/products";
 import { useCart } from "../context/CartContext";
+import type { Product } from "../types";
 import { Icon } from "./Icon";
 
 type CartDrawerProps = {
   open: boolean;
   onClose: () => void;
+  products: Product[];
 };
 
-export function CartDrawer({ open, onClose }: CartDrawerProps) {
+export function CartDrawer({ open, onClose, products }: CartDrawerProps) {
   const { items, removeItem } = useCart();
 
   const enriched = items.map((item) => {
-    const product = products.find((candidate) => candidate.id === item.productId)!;
-    const variant = product.variants.find((candidate) => candidate.id === item.variantId)!;
-    return { ...item, product, variant };
-  });
+    const product = products.find((candidate) => candidate.id === item.productId);
+    const variant = product?.variants.find((candidate) => candidate.id === item.variantId);
+    return product && variant ? { ...item, product, variant } : null;
+  }).filter((item): item is NonNullable<typeof item> => Boolean(item));
 
   const total = enriched.reduce(
     (sum, item) => sum + item.variant.sellingPrice * item.quantity,
@@ -64,4 +65,3 @@ export function CartDrawer({ open, onClose }: CartDrawerProps) {
     </aside>
   );
 }
-

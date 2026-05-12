@@ -1,40 +1,50 @@
 import { useEffect, useState } from "react";
-import { products } from "../data/products";
+import { resolveHeroImageUrl } from "../services/hero";
+import type { HeroConfig } from "../types/hero";
 
-export function HeroCarousel() {
+export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
   const [index, setIndex] = useState(0);
 
   useEffect(() => {
+    if (!hero || hero.images.length <= 1) {
+      return;
+    }
     const timer = window.setInterval(() => {
-      setIndex((current) => (current + 1) % products.length);
+      setIndex((current) => (current + 1) % hero.images.length);
     }, 5000);
     return () => window.clearInterval(timer);
-  }, []);
+  }, [hero]);
 
-  const product = products[index];
+  useEffect(() => {
+    if (!hero || index >= hero.images.length) {
+      setIndex(0);
+    }
+  }, [hero, index]);
+
+  if (!hero) {
+    return null;
+  }
+  const imageUrl = resolveHeroImageUrl(hero.images[index]?.image_url) ?? "/hero-quote-background.jpeg";
 
   return (
     <section className="hero">
+      <img src={imageUrl} alt={hero.headline} className="hero-background-image" />
       <div className="hero-copy">
-        <p className="eyebrow">Small-batch flavour. Big shelf presence.</p>
-        <h2>{product.heroTitle}</h2>
-        <p>{product.heroSubtitle}</p>
+        <p className="eyebrow">{hero.eyebrow_text}</p>
+        <h2>{hero.headline}</h2>
+        <p>{hero.body_text}</p>
         <div className="hero-actions">
-          <a className="pill pill-primary" href="#products">
-            Shop Now
+          <a className="pill pill-primary" href={hero.cta_link}>
+            {hero.cta_label}
           </a>
-          <span className="hero-offer">Fresh jars. Strong value. Smooth checkout.</span>
+          <span className="hero-offer">{hero.offer_text}</span>
         </div>
       </div>
 
-      <div className="hero-visual">
-        <img src={product.image} alt={product.flavour} />
-        <div className="hero-card">
-          <span>{product.flavour}</span>
-          <strong>Starts at Rs. {Math.min(...product.variants.map((variant) => variant.sellingPrice))}</strong>
-        </div>
+      <div className="hero-card">
+        <span>{hero.badge_title}</span>
+        <strong>{hero.badge_subtitle}</strong>
       </div>
     </section>
   );
 }
-

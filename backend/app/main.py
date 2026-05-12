@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import admin, auth, feedback, health, metrics, newsletter, orders, products
+from app.api.routes import admin, auth, feedback, health, hero, metrics, newsletter, orders, products
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
@@ -32,6 +32,7 @@ app.add_middleware(
 
 app.include_router(health.router, prefix="/api/health", tags=["health"])
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(hero.router, prefix="/api/hero", tags=["hero"])
 app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])

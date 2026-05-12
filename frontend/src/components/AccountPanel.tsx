@@ -4,20 +4,26 @@ import { fetchCurrentUser, login, register } from "../services/auth";
 import {
   createAdminProduct,
   deleteAdminProduct,
+  fetchAdminHero,
   fetchAdminMetrics,
   fetchAdminProducts,
   resolveImageUrl,
   type AdminMetrics,
+  type HeroPayload,
   updateAdminProduct,
+  updateAdminHero,
   uploadAdminImage
 } from "../services/admin";
 import { fetchMyOrders, type CustomerOrder } from "../services/orders";
+import type { HeroConfig } from "../types/hero";
 import type { AdminProduct } from "../types/admin";
 import { Icon } from "./Icon";
 
 type AccountPanelProps = {
   open: boolean;
   onClose: () => void;
+  onCatalogChange?: () => Promise<void> | void;
+  onHeroChange?: () => Promise<void> | void;
 };
 
 type View = "menu" | "login" | "register" | "admin" | "orders";
@@ -27,7 +33,7 @@ type ProductFormState = {
   name: string;
   flavour: string;
   description: string;
-  image_url: string;
+  image_urls: string[];
   category: string;
   variants: Array<{
     weight_label: string;
@@ -37,17 +43,41 @@ type ProductFormState = {
   }>;
 };
 
+type HeroFormState = {
+  eyebrow_text: string;
+  headline: string;
+  body_text: string;
+  cta_label: string;
+  cta_link: string;
+  offer_text: string;
+  badge_title: string;
+  badge_subtitle: string;
+  image_urls: string[];
+};
+
 const emptyProductForm = (): ProductFormState => ({
   slug: "",
   name: "Peanut Butter",
   flavour: "",
   description: "",
-  image_url: "",
+  image_urls: ["", "", ""],
   category: "Peanut Butter",
   variants: [
     { weight_label: "1kg", mrp: "", selling_price: "", stock_quantity: "100" },
     { weight_label: "500g", mrp: "", selling_price: "", stock_quantity: "100" }
   ]
+});
+
+const emptyHeroForm = (): HeroFormState => ({
+  eyebrow_text: "",
+  headline: "",
+  body_text: "",
+  cta_label: "Shop Now",
+  cta_link: "#products",
+  offer_text: "",
+  badge_title: "",
+  badge_subtitle: "",
+  image_urls: ["", "", ""]
 });
 
 function productToForm(product: AdminProduct): ProductFormState {
@@ -56,7 +86,7 @@ function productToForm(product: AdminProduct): ProductFormState {
     name: product.name,
     flavour: product.flavour,
     description: product.description,
-    image_url: product.image_url ?? "",
+    image_urls: Array.from({ length: 3 }, (_, index) => product.images[index]?.image_url ?? ""),
     category: product.category,
     variants: product.variants.map((variant) => ({
       weight_label: variant.weight_label,
@@ -73,7 +103,8 @@ function buildProductPayload(form: ProductFormState) {
     name: form.name,
     flavour: form.flavour,
     description: form.description,
-    image_url: form.image_url || null,
+    image_url: form.image_urls.find((item) => item.trim()) || null,
+    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 3),
     category: form.category,
     variants: form.variants.map((variant) => ({
       weight_label: variant.weight_label,
@@ -84,7 +115,35 @@ function buildProductPayload(form: ProductFormState) {
   };
 }
 
-export function AccountPanel({ open, onClose }: AccountPanelProps) {
+function heroToForm(hero: HeroConfig): HeroFormState {
+  return {
+    eyebrow_text: hero.eyebrow_text,
+    headline: hero.headline,
+    body_text: hero.body_text,
+    cta_label: hero.cta_label,
+    cta_link: hero.cta_link,
+    offer_text: hero.offer_text,
+    badge_title: hero.badge_title,
+    badge_subtitle: hero.badge_subtitle,
+    image_urls: Array.from({ length: 3 }, (_, index) => hero.images[index]?.image_url ?? "")
+  };
+}
+
+function buildHeroPayload(form: HeroFormState): HeroPayload {
+  return {
+    eyebrow_text: form.eyebrow_text,
+    headline: form.headline,
+    body_text: form.body_text,
+    cta_label: form.cta_label,
+    cta_link: form.cta_link,
+    offer_text: form.offer_text,
+    badge_title: form.badge_title,
+    badge_subtitle: form.badge_subtitle,
+    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 3)
+  };
+}
+
+export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: AccountPanelProps) {
   const { user, loginUser, logoutUser } = useAuth();
   const [view, setView] = useState<View>("menu");
   const [message, setMessage] = useState("");
@@ -93,6 +152,7 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
+  const [heroForm, setHeroForm] = useState<HeroFormState>(emptyHeroForm());
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm());
   const [uploadingImage, setUploadingImage] = useState(false);
@@ -172,9 +232,13 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
       localStorage.setItem("lagads-admin-token", response.access_token);
       const currentUser = await fetchCurrentUser(response.access_token);
       loginUser(buildAuthUser(currentUser.email, currentUser.full_name, currentUser.is_admin));
-      const dashboardMetrics = await fetchAdminMetrics(response.access_token);
-      const catalog = await fetchAdminProducts(response.access_token);
+      const [dashboardMetrics, catalog, hero] = await Promise.all([
+        fetchAdminMetrics(response.access_token),
+        fetchAdminProducts(response.access_token),
+        fetchAdminHero(response.access_token)
+      ]);
       setProducts(catalog);
+      setHeroForm(heroToForm(hero));
       setMetrics(dashboardMetrics);
       setEditingProductId(null);
       setProductForm(emptyProductForm());
@@ -248,6 +312,28 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
     }));
   };
 
+  const handleImageUrlChange = (index: number, value: string) => {
+    setProductForm((current) => ({
+      ...current,
+      image_urls: current.image_urls.map((imageUrl, imageIndex) =>
+      imageIndex === index ? value : imageUrl
+      )
+    }));
+  };
+
+  const handleHeroFieldChange = (key: keyof Omit<HeroFormState, "image_urls">, value: string) => {
+    setHeroForm((current) => ({ ...current, [key]: value }));
+  };
+
+  const handleHeroImageUrlChange = (index: number, value: string) => {
+    setHeroForm((current) => ({
+      ...current,
+      image_urls: current.image_urls.map((imageUrl, imageIndex) =>
+        imageIndex === index ? value : imageUrl
+      )
+    }));
+  };
+
   const handleSaveProduct = async () => {
     resetFeedback();
     const token = localStorage.getItem("lagads-admin-token");
@@ -268,6 +354,7 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
       }
 
       await refreshAdminCatalog(token);
+      await onCatalogChange?.();
       setEditingProductId(null);
       setProductForm(emptyProductForm());
     } catch (productError) {
@@ -289,6 +376,7 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
     try {
       await deleteAdminProduct(token, productId);
       await refreshAdminCatalog(token);
+      await onCatalogChange?.();
       if (editingProductId === productId) {
         setEditingProductId(null);
         setProductForm(emptyProductForm());
@@ -301,7 +389,28 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
     }
   };
 
-  const handleImageUpload = async (file: File | null) => {
+  const handleSaveHero = async () => {
+    resetFeedback();
+    const token = localStorage.getItem("lagads-admin-token");
+    if (!token) {
+      setError("Admin token missing. Please log in again.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const updatedHero = await updateAdminHero(token, buildHeroPayload(heroForm));
+      setHeroForm(heroToForm(updatedHero));
+      await onHeroChange?.();
+      setMessage("Homepage hero updated successfully.");
+    } catch (heroError) {
+      setError(heroError instanceof Error ? heroError.message : "Unable to update hero settings.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleImageUpload = async (slotIndex: number, file: File | null) => {
     if (!file) {
       return;
     }
@@ -315,10 +424,43 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
     setUploadingImage(true);
     try {
       const imageUrl = await uploadAdminImage(token, file);
-      setProductForm((current) => ({ ...current, image_url: imageUrl }));
-      setMessage("Image uploaded successfully.");
+      setProductForm((current) => ({
+        ...current,
+        image_urls: current.image_urls.map((existingUrl, imageIndex) =>
+          imageIndex === slotIndex ? imageUrl : existingUrl
+        )
+      }));
+      setMessage(`Image ${slotIndex + 1} uploaded successfully.`);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Unable to upload image.");
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  const handleHeroImageUpload = async (slotIndex: number, file: File | null) => {
+    if (!file) {
+      return;
+    }
+    const token = localStorage.getItem("lagads-admin-token");
+    if (!token) {
+      setError("Admin token missing. Please log in again.");
+      return;
+    }
+
+    resetFeedback();
+    setUploadingImage(true);
+    try {
+      const imageUrl = await uploadAdminImage(token, file);
+      setHeroForm((current) => ({
+        ...current,
+        image_urls: current.image_urls.map((existingUrl, imageIndex) =>
+          imageIndex === slotIndex ? imageUrl : existingUrl
+        )
+      }));
+      setMessage(`Hero image ${slotIndex + 1} uploaded successfully.`);
+    } catch (uploadError) {
+      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload hero image.");
     } finally {
       setUploadingImage(false);
     }
@@ -498,6 +640,110 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
               <div className="admin-layout">
                 <section className="admin-section">
                   <div className="admin-section-header">
+                    <h3>Homepage Hero</h3>
+                    <span>Control the main banner text, badge copy, CTA, and up to 3 hero images.</span>
+                  </div>
+
+                  <div className="field">
+                    <span>Eyebrow Text</span>
+                    <input
+                      value={heroForm.eyebrow_text}
+                      onChange={(event) => handleHeroFieldChange("eyebrow_text", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Headline</span>
+                    <textarea
+                      rows={3}
+                      value={heroForm.headline}
+                      onChange={(event) => handleHeroFieldChange("headline", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Body Text</span>
+                    <textarea
+                      rows={5}
+                      value={heroForm.body_text}
+                      onChange={(event) => handleHeroFieldChange("body_text", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>CTA Label</span>
+                    <input
+                      value={heroForm.cta_label}
+                      onChange={(event) => handleHeroFieldChange("cta_label", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>CTA Link</span>
+                    <input
+                      value={heroForm.cta_link}
+                      onChange={(event) => handleHeroFieldChange("cta_link", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Offer Text</span>
+                    <input
+                      value={heroForm.offer_text}
+                      onChange={(event) => handleHeroFieldChange("offer_text", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Badge Title</span>
+                    <input
+                      value={heroForm.badge_title}
+                      onChange={(event) => handleHeroFieldChange("badge_title", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Badge Subtitle</span>
+                    <input
+                      value={heroForm.badge_subtitle}
+                      onChange={(event) => handleHeroFieldChange("badge_subtitle", event.target.value)}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Hero Images</span>
+                    <p className="muted">Upload up to 3 hero images. They rotate automatically on the homepage.</p>
+                    <div className="admin-image-grid">
+                      {heroForm.image_urls.map((imageUrl, index) => (
+                        <div key={`hero-image-${index}`} className="admin-image-slot">
+                          <strong>Hero Image {index + 1}</strong>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) =>
+                              handleHeroImageUpload(index, event.target.files?.[0] ?? null)
+                            }
+                          />
+                          <input
+                            type="text"
+                            value={imageUrl}
+                            placeholder="Uploaded hero image URL will appear here"
+                            onChange={(event) => handleHeroImageUrlChange(index, event.target.value)}
+                          />
+                          {uploadingImage ? <span className="muted">Uploading image...</span> : null}
+                          {resolveImageUrl(imageUrl) ? (
+                            <img
+                              src={resolveImageUrl(imageUrl) ?? ""}
+                              alt={`Hero preview ${index + 1}`}
+                              className="admin-upload-preview"
+                            />
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="admin-inline-actions">
+                    <button className="pill pill-primary" onClick={handleSaveHero} disabled={loading}>
+                      Save Hero
+                    </button>
+                  </div>
+                </section>
+
+                <section className="admin-section">
+                  <div className="admin-section-header">
                     <h3>Product Catalog</h3>
                     <button className="pill" onClick={handleCreateNewProduct}>
                       Add New Product
@@ -578,20 +824,36 @@ export function AccountPanel({ open, onClose }: AccountPanelProps) {
                     />
                   </div>
                   <div className="field">
-                    <span>Product Image Upload</span>
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={(event) => handleImageUpload(event.target.files?.[0] ?? null)}
-                    />
-                    {uploadingImage ? <span className="muted">Uploading image...</span> : null}
-                    {resolveImageUrl(productForm.image_url) ? (
-                      <img
-                        src={resolveImageUrl(productForm.image_url) ?? ""}
-                        alt="Uploaded preview"
-                        className="admin-upload-preview"
-                      />
-                    ) : null}
+                    <span>Product Images</span>
+                    <p className="muted">Upload up to 3 images. The first image becomes the main storefront image.</p>
+                    <div className="admin-image-grid">
+                      {productForm.image_urls.map((imageUrl, index) => (
+                        <div key={`product-image-${index}`} className="admin-image-slot">
+                          <strong>Image {index + 1}</strong>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(event) =>
+                              handleImageUpload(index, event.target.files?.[0] ?? null)
+                            }
+                          />
+                          <input
+                            type="text"
+                            value={imageUrl}
+                            placeholder="Uploaded image URL will appear here"
+                            onChange={(event) => handleImageUrlChange(index, event.target.value)}
+                          />
+                          {uploadingImage ? <span className="muted">Uploading image...</span> : null}
+                          {resolveImageUrl(imageUrl) ? (
+                            <img
+                              src={resolveImageUrl(imageUrl) ?? ""}
+                              alt={`Uploaded preview ${index + 1}`}
+                              className="admin-upload-preview"
+                            />
+                          ) : null}
+                        </div>
+                      ))}
+                    </div>
                   </div>
 
                   <div className="variant-editor">

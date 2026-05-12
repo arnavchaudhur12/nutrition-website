@@ -14,6 +14,7 @@ export const products: Product[] = [
     heroSubtitle: "Premium roasted peanut butter with deep chocolate notes.",
     description: descriptionBase,
     image: logo,
+    images: [logo],
     highlights: ["High-repeat flavour", "Crunchy texture", "Daily-use pantry jar"],
     variants: [
       {
@@ -43,6 +44,7 @@ export const products: Product[] = [
     heroSubtitle: "Creamy, mellow and indulgent for everyday use.",
     description: descriptionBase,
     image: logo,
+    images: [logo],
     highlights: ["Creamy mouthfeel", "Mellow finish", "Perfect for shakes and toast"],
     variants: [
       {

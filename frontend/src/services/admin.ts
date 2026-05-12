@@ -1,4 +1,5 @@
 import { API_BASE_URL, API_ORIGIN } from "../config/api";
+import type { HeroConfig } from "../types/hero";
 import type { AdminProduct } from "../types/admin";
 
 export type AdminMetrics = {
@@ -29,6 +30,7 @@ type ProductPayload = {
   flavour: string;
   description: string;
   image_url?: string | null;
+  image_urls: string[];
   category: string;
   variants: Array<{
     weight_label: string;
@@ -36,6 +38,18 @@ type ProductPayload = {
     selling_price: number;
     stock_quantity: number;
   }>;
+};
+
+export type HeroPayload = {
+  eyebrow_text: string;
+  headline: string;
+  body_text: string;
+  cta_label: string;
+  cta_link: string;
+  offer_text: string;
+  badge_title: string;
+  badge_subtitle: string;
+  image_urls: string[];
 };
 
 function authHeaders(token: string): HeadersInit {
@@ -57,6 +71,9 @@ export function resolveImageUrl(imageUrl?: string | null): string | null {
   if (!imageUrl) {
     return null;
   }
+  if (imageUrl === "/hero-quote-background.jpeg") {
+    return imageUrl;
+  }
   if (imageUrl.startsWith("http")) {
     return imageUrl;
   }
@@ -68,6 +85,25 @@ export async function fetchAdminProducts(token: string): Promise<AdminProduct[]>
     headers: authHeaders(token)
   });
   return parseJson<AdminProduct[]>(response, "Unable to load products.");
+}
+
+export async function fetchAdminHero(token: string): Promise<HeroConfig> {
+  const response = await fetch(`${API_BASE_URL}/admin/hero`, {
+    headers: authHeaders(token)
+  });
+  return parseJson<HeroConfig>(response, "Unable to load hero settings.");
+}
+
+export async function updateAdminHero(token: string, payload: HeroPayload): Promise<HeroConfig> {
+  const response = await fetch(`${API_BASE_URL}/admin/hero`, {
+    method: "PUT",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  return parseJson<HeroConfig>(response, "Unable to update hero settings.");
 }
 
 export async function createAdminProduct(

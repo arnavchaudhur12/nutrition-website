@@ -1,9 +1,10 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.hero import HeroImage, HeroSettings
 from app.core.config import get_settings
 from app.core.security import get_password_hash
-from app.models.product import Product, ProductVariant
+from app.models.product import Product, ProductImage, ProductVariant
 from app.models.user import User
 
 
@@ -65,5 +66,28 @@ def seed_defaults(db: Session) -> None:
             ]
         )
 
-    db.commit()
+    products = db.execute(select(Product)).scalars().all()
+    for product in products:
+        if product.image_url and not product.images:
+            product.images.append(ProductImage(image_url=product.image_url, sort_order=0))
 
+    hero_settings = db.execute(select(HeroSettings)).scalar_one_or_none()
+    if not hero_settings:
+        db.add(
+            HeroSettings(
+                eyebrow_text="Small-batch flavour. Big shelf presence.",
+                headline="Healthy Taste For Everyday Lifestyle",
+                body_text=(
+                    "Lagads Nutrition hero copy is now manageable from the admin dashboard so"
+                    " you can update launches, messages, and campaign visuals without code changes."
+                ),
+                cta_label="Shop Now",
+                cta_link="#products",
+                offer_text="Fresh jars. Strong value. Smooth checkout.",
+                badge_title="Lagads Nutrition",
+                badge_subtitle="Built for everyday lifestyle",
+                images=[HeroImage(image_url="/hero-quote-background.jpeg", sort_order=0)],
+            )
+        )
+
+    db.commit()

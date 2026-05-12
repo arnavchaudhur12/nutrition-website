@@ -22,6 +22,11 @@ class Product(Base):
     variants: Mapped[list["ProductVariant"]] = relationship(
         back_populates="product", cascade="all, delete-orphan"
     )
+    images: Mapped[list["ProductImage"]] = relationship(
+        back_populates="product",
+        cascade="all, delete-orphan",
+        order_by="ProductImage.sort_order",
+    )
 
 
 class ProductVariant(Base):
@@ -35,3 +40,14 @@ class ProductVariant(Base):
     stock_quantity: Mapped[int] = mapped_column(Integer, default=100)
 
     product: Mapped["Product"] = relationship(back_populates="variants")
+
+
+class ProductImage(Base):
+    __tablename__ = "product_images"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    product_id: Mapped[int] = mapped_column(ForeignKey("products.id"))
+    image_url: Mapped[str] = mapped_column(String(500))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    product: Mapped["Product"] = relationship(back_populates="images")

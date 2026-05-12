@@ -16,6 +16,7 @@ export type Product = {
   heroSubtitle: string;
   description: string;
   image: string;
+  images: string[];
   variants: ProductVariant[];
   highlights: string[];
 };
@@ -25,4 +26,3 @@ export type CartItem = {
   variantId: string;
   quantity: number;
 };
-
