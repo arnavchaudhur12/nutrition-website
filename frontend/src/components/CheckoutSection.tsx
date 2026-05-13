@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { fetchCurrentUser } from "../services/auth";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { createPaymentOrder, notifyPaymentFailure, previewCoupon, verifyPayment } from "../services/payments";
@@ -9,6 +10,47 @@ type CheckoutSectionProps = {
 };
 
 const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? "";
+
+function getSessionToken(): string {
+  return localStorage.getItem("lagads-user-token") || localStorage.getItem("lagads-admin-token") || "";
+}
+
+function getAllSessionTokens(): string[] {
+  const candidates = [
+    localStorage.getItem("lagads-user-token") || "",
+    localStorage.getItem("lagads-admin-token") || ""
+  ].filter(Boolean);
+  return Array.from(new Set(candidates));
+}
+
+function isAuthErrorMessage(message: string): boolean {
+  const text = message.toLowerCase();
+  return (
+    text.includes("invalid token") ||
+    text.includes("missing bearer token") ||
+    text.includes("user not found") ||
+    text.includes("authentication failed") ||
+    text.includes("unauthorized")
+  );
+}
+
+async function resolveValidSessionToken(): Promise<string> {
+  const candidates = [
+    { key: "lagads-user-token" as const, value: localStorage.getItem("lagads-user-token") || "" },
+    { key: "lagads-admin-token" as const, value: localStorage.getItem("lagads-admin-token") || "" }
+  ].filter((entry) => Boolean(entry.value));
+
+  for (const entry of candidates) {
+    try {
+      await fetchCurrentUser(entry.value);
+      return entry.value;
+    } catch {
+      localStorage.removeItem(entry.key);
+    }
+  }
+
+  return "";
+}
 
 const initialFormState = {
   customerName: "",
@@ -35,6 +77,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const paymentFlowLock = useRef(false);
   const [couponDiscountPercent, setCouponDiscountPercent] = useState(0);
   const [couponStatus, setCouponStatus] = useState("");
 
@@ -70,6 +113,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     1,
     Math.round((totalAmount * ((100 - couponDiscountPercent) / 100)) * 100) / 100
   );
+  const discountAmount = Math.max(0, Math.round((totalAmount - discountedTotal) * 100) / 100);
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -81,7 +125,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   };
 
   const validateCheckout = () => {
-    const token = localStorage.getItem("lagads-user-token");
+    const token = getSessionToken();
     if (!user || !token) {
       return "Please log in before placing an order or making payment.";
     }
@@ -104,10 +148,16 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   };
 
   const handlePayment = async () => {
-    const token = localStorage.getItem("lagads-user-token");
+    if (paymentFlowLock.current) {
+      return;
+    }
+    paymentFlowLock.current = true;
+
+    const token = getSessionToken();
     const validationError = validateCheckout();
     if (validationError) {
       showStatus("error", validationError);
+      paymentFlowLock.current = false;
       return;
     }
 
@@ -121,7 +171,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         throw new Error("Razorpay checkout script is still loading. Please try again.");
       }
 
-      const paymentOrder = await createPaymentOrder({
+      const payload = {
         currency: "INR",
         customer_name: form.customerName,
         email: form.email,
@@ -135,7 +185,42 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           variant_id: Number(item.variant.id),
           quantity: item.quantity
         }))
-      }, token || "");
+      };
+
+      let paymentOrder: Awaited<ReturnType<typeof createPaymentOrder>> | null = null;
+      let activeToken = token;
+      let tokensToTry = getAllSessionTokens();
+      let lastError: Error | null = null;
+      for (const candidateToken of tokensToTry) {
+        try {
+          paymentOrder = await createPaymentOrder(payload, candidateToken);
+          activeToken = candidateToken;
+          break;
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error("Unable to start payment.");
+          if (!isAuthErrorMessage(lastError.message)) {
+            throw lastError;
+          }
+        }
+      }
+      if (!paymentOrder && lastError && isAuthErrorMessage(lastError.message)) {
+        const refreshedToken = await resolveValidSessionToken();
+        if (refreshedToken) {
+          tokensToTry = [refreshedToken];
+          for (const candidateToken of tokensToTry) {
+            try {
+              paymentOrder = await createPaymentOrder(payload, candidateToken);
+              activeToken = candidateToken;
+              break;
+            } catch (error) {
+              lastError = error instanceof Error ? error : new Error("Unable to start payment.");
+            }
+          }
+        }
+      }
+      if (!paymentOrder) {
+        throw lastError ?? new Error("Unable to start payment.");
+      }
 
       const razorpay = new RazorpayCheckout({
         key: razorpayKeyId,
@@ -158,21 +243,23 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         modal: {
           ondismiss: () => {
             setIsSubmitting(false);
+            paymentFlowLock.current = false;
             void notifyPaymentFailure(
               {
                 razorpay_order_id: paymentOrder.order_id,
                 reason: "cancelled",
                 description: "Customer closed the payment window before completing payment."
               },
-              token || ""
+              activeToken
             ).catch(() => undefined);
             showStatus("error", "Payment was cancelled before completion.");
           }
         },
         handler: async (response) => {
           try {
-            const result = await verifyPayment(response, token || "");
+            const result = await verifyPayment(response, activeToken);
             setIsSubmitting(false);
+            paymentFlowLock.current = false;
             showStatus(
               "success",
               result.order_number
@@ -181,6 +268,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             );
           } catch (error) {
             setIsSubmitting(false);
+            paymentFlowLock.current = false;
             showStatus(
               "error",
               error instanceof Error ? error.message : "Payment verification failed."
@@ -191,6 +279,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
 
       razorpay.on("payment.failed", (response) => {
         setIsSubmitting(false);
+        paymentFlowLock.current = false;
         void notifyPaymentFailure(
           {
             razorpay_order_id: response.error?.metadata?.order_id ?? paymentOrder.order_id,
@@ -198,7 +287,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             reason: response.error?.reason,
             description: response.error?.description
           },
-          token || ""
+          activeToken
         ).catch(() => undefined);
         showStatus(
           "error",
@@ -209,12 +298,13 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       razorpay.open();
     } catch (error) {
       setIsSubmitting(false);
+      paymentFlowLock.current = false;
       showStatus("error", error instanceof Error ? error.message : "Unable to start payment.");
     }
   };
 
   useEffect(() => {
-    const token = localStorage.getItem("lagads-user-token");
+    const token = getSessionToken();
     const couponCode = form.couponCode.trim().toUpperCase();
     if (!couponCode) {
       setCouponDiscountPercent(0);
@@ -237,7 +327,12 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       .then((result) => {
         if (cancelled) return;
         setCouponDiscountPercent(result.discount_percent);
-        setCouponStatus(`${result.discount_percent}% discount applied.`);
+        const previewDiscountAmount =
+          Math.round((totalAmount * (result.discount_percent / 100)) * 100) / 100;
+        const previewFinalAmount = Math.max(1, Math.round((totalAmount - previewDiscountAmount) * 100) / 100);
+        setCouponStatus(
+          `${result.discount_percent}% OFF applied: ${formatRupees(totalAmount)} -> ${formatRupees(previewFinalAmount)}`
+        );
       })
       .catch(() => {
         if (cancelled) return;
@@ -325,7 +420,13 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         </label>
         <div className="checkout-summary">
           <span>{couponDiscountPercent > 0 ? "Discounted Total" : "Cart Total"}</span>
-          <strong>{formatRupees(couponDiscountPercent > 0 ? discountedTotal : totalAmount)}</strong>
+          {couponDiscountPercent > 0 ? (
+            <strong>
+              {formatRupees(discountedTotal)} (Saved {formatRupees(discountAmount)})
+            </strong>
+          ) : (
+            <strong>{formatRupees(totalAmount)}</strong>
+          )}
         </div>
         {couponStatus ? <p className={`status-message ${couponDiscountPercent > 0 ? "success" : "error"}`}>{couponStatus}</p> : null}
         <button
