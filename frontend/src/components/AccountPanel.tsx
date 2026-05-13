@@ -190,7 +190,23 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       localStorage.setItem("lagads-user-token", response.access_token);
       const currentUser = await fetchCurrentUser(response.access_token);
       loginUser(buildAuthUser(currentUser.email, currentUser.full_name, currentUser.is_admin));
-      setMessage("Login successful. Your customer session is ready.");
+      if (currentUser.is_admin) {
+        localStorage.setItem("lagads-admin-token", response.access_token);
+        const [dashboardMetrics, catalog, hero] = await Promise.all([
+          fetchAdminMetrics(response.access_token),
+          fetchAdminProducts(response.access_token),
+          fetchAdminHero(response.access_token)
+        ]);
+        setProducts(catalog);
+        setHeroForm(heroToForm(hero));
+        setMetrics(dashboardMetrics);
+        setEditingProductId(null);
+        setProductForm(emptyProductForm());
+        setView("admin");
+        setMessage("Admin login successful. Dashboard loaded.");
+      } else {
+        setMessage("Login successful. Your customer session is ready.");
+      }
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : "Login failed.");
     } finally {
@@ -220,22 +236,21 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     }
   };
 
-  const handleAdminLogin = async () => {
+  const handleOpenAdminDashboard = async () => {
     resetFeedback();
+    const token = localStorage.getItem("lagads-admin-token") || localStorage.getItem("lagads-user-token");
+    if (!token || !user?.isAdmin) {
+      setError("Please log in with an admin account first.");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await login({
-        email: loginEmail,
-        password: loginPassword
-      });
-      localStorage.setItem("lagads-admin-token", response.access_token);
-      const currentUser = await fetchCurrentUser(response.access_token);
-      loginUser(buildAuthUser(currentUser.email, currentUser.full_name, currentUser.is_admin));
       const [dashboardMetrics, catalog, hero] = await Promise.all([
-        fetchAdminMetrics(response.access_token),
-        fetchAdminProducts(response.access_token),
-        fetchAdminHero(response.access_token)
+        fetchAdminMetrics(token),
+        fetchAdminProducts(token),
+        fetchAdminHero(token)
       ]);
       setProducts(catalog);
       setHeroForm(heroToForm(hero));
@@ -243,9 +258,9 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       setEditingProductId(null);
       setProductForm(emptyProductForm());
       setView("admin");
-      setMessage("Admin login successful. Dashboard loaded.");
+      setMessage("Admin dashboard loaded.");
     } catch (authError) {
-      setError(authError instanceof Error ? authError.message : "Admin login failed.");
+      setError(authError instanceof Error ? authError.message : "Unable to load admin dashboard.");
     } finally {
       setLoading(false);
     }
@@ -509,13 +524,15 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                 <button className="pill" onClick={() => goToView("register")}>
                   Register
                 </button>
-                <button className="pill pill-muted" onClick={() => goToView("admin")}>
-                  Admin
-                </button>
               </>
             )}
           </div>
           <div className="panel-links">
+            {user?.isAdmin ? (
+              <button className="text-link-button" onClick={handleOpenAdminDashboard} disabled={loading}>
+                Admin Dashboard
+              </button>
+            ) : null}
             <a href="#orders" onClick={onClose}>
               Saved Checkout Details
             </a>
@@ -597,22 +614,6 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           <button className="text-button" onClick={() => goToView("menu")}>
             Back
           </button>
-          <div className="field">
-            <span>Admin Email</span>
-            <input value={loginEmail} onChange={(event) => setLoginEmail(event.target.value)} />
-          </div>
-          <div className="field">
-            <span>Admin Password</span>
-            <input
-              type="password"
-              value={loginPassword}
-              onChange={(event) => setLoginPassword(event.target.value)}
-            />
-          </div>
-          <button className="pill pill-primary" onClick={handleAdminLogin} disabled={loading}>
-            {loading ? "Loading..." : "Open Admin Dashboard"}
-          </button>
-
           {metrics ? (
             <>
               <div className="admin-metrics">

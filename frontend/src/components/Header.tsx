@@ -1,4 +1,4 @@
-import logo from "../assets/company-logo.png";
+import logo from "../assets/company-logo.PNG";
 import { Icon } from "./Icon";
 
 type HeaderProps = {
@@ -25,15 +25,20 @@ export function Header({
       <div className="brand-lockup">
         <img src={logo} alt="Lagads Nutrition logo" className="brand-logo" />
         <div>
-          <p className="eyebrow">Lagads Nutrition</p>
           <h1>Lagads Nutrition</h1>
         </div>
       </div>
 
       <div className="topbar-actions">
-        <button className="icon-button" onClick={onAccountClick} aria-label="Account">
-          {profileInitial ? <span className="profile-initial">{profileInitial}</span> : <Icon name="account" />}
-        </button>
+        {profileInitial ? (
+          <button className="icon-button" onClick={onAccountClick} aria-label="Account">
+            <span className="profile-initial">{profileInitial}</span>
+          </button>
+        ) : (
+          <button className="login-signup-button" onClick={onAccountClick} aria-label="Login or Sign Up">
+            Login / Sign Up
+          </button>
+        )}
         <button className="icon-button cart-button" onClick={onCartClick} aria-label="Cart">
           <Icon name="cart" />
           {cartCount > 0 ? <span className="cart-badge">{cartCount}</span> : null}

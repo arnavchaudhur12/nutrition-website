@@ -39,7 +39,11 @@ class EmailService:
         html_body: str,
         attachments: Iterable[EmailAttachment] = (),
     ) -> None:
-        recipients = list(dict.fromkeys([buyer_email, self.settings.notification_email]))
+        recipients = list(
+            dict.fromkeys(
+                [buyer_email, self.settings.notification_email, self.settings.smtp_user]
+            )
+        )
         local_smtp_hosts = {"localhost", "127.0.0.1", "0.0.0.0"}
         can_send_without_password = self.settings.smtp_host in local_smtp_hosts
         if not self.settings.smtp_password and not can_send_without_password:

@@ -10,6 +10,7 @@ def test_order_confirmation_sends_separate_messages_with_invoice(monkeypatch) ->
     service.settings.smtp_host = "smtp.gmail.com"
     service.settings.smtp_password = "app-password"
     service.settings.notification_email = "admin@example.com"
+    service.settings.smtp_user = "customercare@example.com"
 
     delivered_messages = []
 
@@ -25,10 +26,11 @@ def test_order_confirmation_sends_separate_messages_with_invoice(monkeypatch) ->
         attachments=[("invoice-LN-TEST.pdf", b"%PDF-1.4 test", "application", "pdf")],
     )
 
-    assert len(delivered_messages) == 2
+    assert len(delivered_messages) == 3
     assert {message["To"] for message in delivered_messages} == {
         "buyer@example.com",
         "admin@example.com",
+        "customercare@example.com",
     }
 
     for message in delivered_messages:

@@ -18,6 +18,7 @@
 
 body {
   margin: 0;
+  overflow-x: hidden;
 }
 
 a {
@@ -55,6 +56,15 @@ select {
   align-items: center;
   justify-content: center;
   gap: 1rem;
+  min-width: 0;
+}
+
+.brand-lockup > div {
+  min-width: 0;
+}
+
+.brand-lockup h1 {
+  overflow-wrap: anywhere;
 }
 
 .brand-logo {
@@ -87,6 +97,17 @@ select {
 .topbar-actions {
   display: flex;
   gap: 0.5rem;
+}
+
+.login-signup-button {
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--ink);
+  font-size: 0.92rem;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 0.55rem 0.95rem;
+  cursor: pointer;
 }
 
 .icon-button {
@@ -172,7 +193,7 @@ main {
 }
 
 .hero-copy h2 {
-  font-size: clamp(2.5rem, 5vw, 5rem);
+  font-size: clamp(2.2rem, 4.4vw, 4.35rem);
   line-height: 0.92;
   max-width: 12ch;
   font-weight: 900;
@@ -185,6 +206,7 @@ main {
   font-weight: 800;
   color: #1d120f;
   text-shadow: 0 1px 5px rgba(255, 255, 255, 0.12);
+  overflow-wrap: anywhere;
 }
 
 .hero-actions {
@@ -360,6 +382,7 @@ main {
 .field input,
 .field textarea,
 .field select {
+  width: 100%;
   padding: 0.95rem 1rem;
   border-radius: 16px;
   border: 1px solid var(--border);
@@ -536,6 +559,7 @@ main {
 
 .newsletter-form input {
   flex: 1;
+  min-width: 0;
   padding: 1rem;
   border-radius: 999px;
   border: 1px solid var(--border);
@@ -586,6 +610,63 @@ main {
   margin: 0.45rem 0 0;
   color: var(--muted);
   line-height: 1.55;
+}
+
+.terms-open-button {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: white;
+  border-radius: 14px;
+  padding: 0.85rem 1rem;
+  text-align: left;
+  font-weight: 800;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.terms-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgba(15, 62, 65, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.terms-modal-card {
+  width: min(760px, 100%);
+  max-height: 85vh;
+  overflow: auto;
+  border-radius: 22px;
+  background: #fffdf9;
+  border: 1px solid var(--border);
+  box-shadow: 0 22px 60px rgba(15, 62, 65, 0.24);
+  padding: 1.2rem;
+}
+
+.terms-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+}
+
+.terms-modal-header h3 {
+  margin: 0;
+}
+
+.terms-modal-content {
+  margin-top: 0.75rem;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.terms-modal-content p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
 }
 
 .muted {
@@ -802,6 +883,34 @@ main {
   .hero-copy {
     max-width: 100%;
   }
+
+  .hero-card {
+    position: static;
+    margin-top: 1rem;
+    width: fit-content;
+    max-width: 100%;
+  }
+
+  .price-row,
+  .checkout-row,
+  .checkout-summary,
+  .signed-in-banner,
+  .cart-item,
+  .order-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .quantity-stepper {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .quantity-stepper input,
+  .pill,
+  .checkout-row .pill {
+    width: 100%;
+  }
 }
 
 @media (max-width: 640px) {
@@ -821,6 +930,7 @@ main {
 
   .brand-lockup h1 {
     font-size: 1.2rem;
+    line-height: 1;
   }
 
   main {
@@ -839,5 +949,144 @@ main {
 
   .newsletter-form {
     flex-direction: column;
+  }
+
+  .hero {
+    min-height: 420px;
+    align-items: start;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(2rem, 11vw, 3.2rem);
+    max-width: 100%;
+  }
+
+  .hero-copy p,
+  .hero-offer {
+    font-size: 0.95rem;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .hero-actions .pill {
+    width: 100%;
+  }
+
+  .product-visual {
+    min-height: 280px;
+    padding: 1rem;
+  }
+
+  .product-visual img {
+    max-width: 220px;
+    max-height: 280px;
+  }
+
+  .product-carousel-arrow,
+  .carousel-arrow {
+    width: 40px;
+    height: 40px;
+    right: 0.6rem;
+    font-size: 1.6rem;
+  }
+
+  .product-description,
+  .terms-intro p:last-child,
+  .terms-card p {
+    line-height: 1.6;
+  }
+
+  .chip-row {
+    gap: 0.5rem;
+  }
+
+  .chip {
+    font-size: 0.82rem;
+  }
+
+  .drawer,
+  .panel,
+  .panel-admin {
+    width: 100vw;
+  }
+
+  .admin-image-grid,
+  .terms-grid,
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar {
+    grid-template-columns: 40px 1fr auto;
+    gap: 0.6rem;
+    padding: 0.75rem;
+  }
+
+  .brand-lockup {
+    gap: 0.5rem;
+    justify-content: flex-start;
+  }
+
+  .brand-logo {
+    width: 40px;
+    height: 40px;
+  }
+
+  .eyebrow {
+    letter-spacing: 0.1em;
+    font-size: 0.68rem;
+  }
+
+  .brand-lockup h1 {
+    font-size: 1rem;
+  }
+
+  .topbar-actions {
+    gap: 0.15rem;
+  }
+
+  .icon-button {
+    font-size: 1.25rem;
+  }
+
+  .login-signup-button {
+    font-size: 0.78rem;
+    padding: 0.45rem 0.72rem;
+  }
+
+  .hero,
+  .section-heading,
+  .split-section,
+  .newsletter-box,
+  .checkout-shell,
+  .terms-section,
+  .product-body {
+    padding: 1rem;
+    border-radius: 22px;
+  }
+
+  .hero {
+    min-height: 380px;
+  }
+
+  .hero-copy h2 {
+    font-size: clamp(1.7rem, 10vw, 2.6rem);
+  }
+
+  .checkout-summary strong,
+  .price-row strong,
+  .checkout-row span {
+    overflow-wrap: anywhere;
+  }
+
+  .admin-inline-actions,
+  .hero-actions,
+  .newsletter-form {
+    width: 100%;
   }
 }

@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 const termsSections = [
   {
     title: "1. General",
@@ -135,6 +137,9 @@ const termsSections = [
 ];
 
 export function InfoSections() {
+  const [openTermTitle, setOpenTermTitle] = useState<string | null>(null);
+  const selectedTerm = termsSections.find((section) => section.title === openTermTitle) ?? null;
+
   return (
     <>
       <section className="split-section" id="about-us">
@@ -188,14 +193,40 @@ export function InfoSections() {
         <div className="terms-grid">
           {termsSections.map((section) => (
             <article className="terms-card" key={section.title}>
-              <h3>{section.title}</h3>
-              {section.body.map((line) => (
-                <p key={line}>{line}</p>
-              ))}
+              <button
+                type="button"
+                className="terms-open-button"
+                onClick={() => setOpenTermTitle(section.title)}
+              >
+                {section.title}
+              </button>
             </article>
           ))}
         </div>
       </section>
+
+      {selectedTerm ? (
+        <div className="terms-modal-overlay" role="dialog" aria-modal="true">
+          <div className="terms-modal-card">
+            <div className="terms-modal-header">
+              <h3>{selectedTerm.title}</h3>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setOpenTermTitle(null)}
+                aria-label="Close terms details"
+              >
+                x
+              </button>
+            </div>
+            <div className="terms-modal-content">
+              {selectedTerm.body.map((line) => (
+                <p key={line}>{line}</p>
+              ))}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }
