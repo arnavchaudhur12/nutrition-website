@@ -20,6 +20,10 @@ type RazorpayFailureResponse = {
   error?: {
     description?: string;
     reason?: string;
+    metadata?: {
+      order_id?: string;
+      payment_id?: string;
+    };
   };
 };
 

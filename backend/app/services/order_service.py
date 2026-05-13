@@ -9,6 +9,7 @@ from app.repositories.order import OrderRepository
 from app.repositories.product import ProductRepository
 from app.schemas.order import (
     OrderCreateRequest,
+    RazorpayFailureRequest,
     RazorpayOrderCreateRequest,
     RazorpayVerifyRequest,
 )
@@ -49,15 +50,23 @@ class OrderService:
             "payment": payment,
         }
 
-    def create_razorpay_order(self, payload: RazorpayOrderCreateRequest) -> dict[str, object]:
+    def create_razorpay_order(
+        self, payload: RazorpayOrderCreateRequest, current_user: User
+    ) -> dict[str, object]:
         app_order_number = None
         receipt = payload.receipt
 
         if payload.items:
+            if payload.email and str(payload.email).lower() != current_user.email.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Checkout email must match the logged-in account.",
+                )
+
             order_payload = OrderCreateRequest(
-                customer_name=payload.customer_name or "",
-                email=str(payload.email or ""),
-                phone_number=payload.phone_number or "",
+                customer_name=payload.customer_name or current_user.full_name,
+                email=current_user.email,
+                phone_number=payload.phone_number or current_user.phone_number or "",
                 alternate_phone_number=payload.alternate_phone_number,
                 delivery_address=payload.delivery_address or "",
                 comments=payload.comments,
@@ -87,7 +96,9 @@ class OrderService:
             "app_order_number": app_order_number,
         }
 
-    def verify_razorpay_payment(self, payload: RazorpayVerifyRequest) -> dict[str, object]:
+    def verify_razorpay_payment(
+        self, payload: RazorpayVerifyRequest, current_user: User
+    ) -> dict[str, object]:
         if (
             not payload.razorpay_order_id
             or not payload.razorpay_payment_id
@@ -113,6 +124,7 @@ class OrderService:
         order = self.orders.get_by_payment_reference(payload.razorpay_order_id)
         if not order:
             return {"success": True, "order_number": None}
+        self._ensure_order_owner(order, current_user)
 
         order.status = "confirmed"
         order.payment_status = "paid"
@@ -125,6 +137,29 @@ class OrderService:
             buyer_email=order.email,
             subject=f"Order confirmation for {order.order_number}",
             html_body=self._build_email_body(order),
+        )
+
+        return {"success": True, "order_number": order.order_number}
+
+    def mark_razorpay_payment_failed(
+        self, payload: RazorpayFailureRequest, current_user: User
+    ) -> dict[str, object]:
+        order = self.orders.get_by_payment_reference(payload.razorpay_order_id)
+        if not order:
+            return {"success": True, "order_number": None}
+        self._ensure_order_owner(order, current_user)
+
+        order.status = "payment_failed"
+        order.payment_status = "failed"
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+
+        failure_reason = payload.description or payload.reason or "Payment failed or was cancelled."
+        self.email_service.send_payment_failure(
+            buyer_email=order.email,
+            subject=f"Payment failed for {order.order_number}",
+            html_body=self._build_payment_failure_email_body(order, failure_reason),
         )
 
         return {"success": True, "order_number": order.order_number}
@@ -187,6 +222,14 @@ class OrderService:
         return self.orders.list_orders_by_email(user.email)
 
     @staticmethod
+    def _ensure_order_owner(order: Order, user: User) -> None:
+        if order.email.lower() != user.email.lower():
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="This payment does not belong to the logged-in account.",
+            )
+
+    @staticmethod
     def _build_email_body(order: Order) -> str:
         rows = "".join(
             [
@@ -200,10 +243,22 @@ class OrderService:
         )
         return (
             f"<h2>Namaste from Lagads Nutrition</h2>"
-            f"<p>Your order <strong>{order.order_number}</strong> has been created.</p>"
+            f"<p>Your payment is confirmed for order <strong>{order.order_number}</strong>.</p>"
             f"<table border='1' cellpadding='8' cellspacing='0'>"
             f"<thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Total</th></tr></thead>"
             f"<tbody>{rows}</tbody></table>"
+            f"<p>Customer: {order.customer_name}<br/>"
+            f"Email: {order.email}<br/>"
+            f"Phone: {order.phone_number}<br/>"
+            f"Address: {order.delivery_address}</p>"
+        )
+
+    @staticmethod
+    def _build_payment_failure_email_body(order: Order, reason: str) -> str:
+        return (
+            f"<h2>Payment could not be completed</h2>"
+            f"<p>Order <strong>{order.order_number}</strong> is marked as payment failed.</p>"
+            f"<p>Reason: {reason}</p>"
             f"<p>Customer: {order.customer_name}<br/>"
             f"Email: {order.email}<br/>"
             f"Phone: {order.phone_number}<br/>"

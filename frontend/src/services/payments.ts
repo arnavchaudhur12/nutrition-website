@@ -36,17 +36,32 @@ export type VerifyPaymentResult = {
   order_number?: string | null;
 };
 
+export type PaymentFailurePayload = {
+  razorpay_order_id: string;
+  razorpay_payment_id?: string;
+  reason?: string;
+  description?: string;
+};
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   const body = (await response.json().catch(() => null)) as { detail?: string } | null;
   return new Error(body?.detail ?? fallback);
 }
 
-export async function createPaymentOrder(payload: CreatePaymentOrderPayload): Promise<PaymentOrder> {
+function authHeaders(token: string): HeadersInit {
+  return {
+    "Content-Type": "application/json",
+    Authorization: `Bearer ${token}`
+  };
+}
+
+export async function createPaymentOrder(
+  payload: CreatePaymentOrderPayload,
+  token: string
+): Promise<PaymentOrder> {
   const response = await fetch(`${API_BASE_URL}/create-order`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(token),
     body: JSON.stringify(payload)
   });
 
@@ -57,17 +72,35 @@ export async function createPaymentOrder(payload: CreatePaymentOrderPayload): Pr
   return (await response.json()) as PaymentOrder;
 }
 
-export async function verifyPayment(payload: VerifyPaymentPayload): Promise<VerifyPaymentResult> {
+export async function verifyPayment(
+  payload: VerifyPaymentPayload,
+  token: string
+): Promise<VerifyPaymentResult> {
   const response = await fetch(`${API_BASE_URL}/verify-payment`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
+    headers: authHeaders(token),
     body: JSON.stringify(payload)
   });
 
   if (!response.ok) {
     throw await parseError(response, "Payment verification failed.");
+  }
+
+  return (await response.json()) as VerifyPaymentResult;
+}
+
+export async function notifyPaymentFailure(
+  payload: PaymentFailurePayload,
+  token: string
+): Promise<VerifyPaymentResult> {
+  const response = await fetch(`${API_BASE_URL}/payment-failed`, {
+    method: "POST",
+    headers: authHeaders(token),
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    throw await parseError(response, "Unable to record failed payment.");
   }
 
   return (await response.json()) as VerifyPaymentResult;

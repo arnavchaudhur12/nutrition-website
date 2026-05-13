@@ -1,6 +1,7 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-import { createPaymentOrder, verifyPayment } from "../services/payments";
+import { createPaymentOrder, notifyPaymentFailure, verifyPayment } from "../services/payments";
 import type { Product } from "../types";
 
 type CheckoutSectionProps = {
@@ -27,11 +28,24 @@ function formatRupees(amount: number) {
 }
 
 export function CheckoutSection({ products }: CheckoutSectionProps) {
+  const { user } = useAuth();
   const { items } = useCart();
   const [form, setForm] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!user) {
+      return;
+    }
+
+    setForm((current) => ({
+      ...current,
+      customerName: current.customerName || user.fullName,
+      email: current.email || user.email
+    }));
+  }, [user]);
 
   const enrichedCart = useMemo(
     () =>
@@ -60,6 +74,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   };
 
   const validateCheckout = () => {
+    const token = localStorage.getItem("lagads-user-token");
+    if (!user || !token) {
+      return "Please log in before placing an order or making payment.";
+    }
     if (!razorpayKeyId) {
       return "Razorpay public key is not configured.";
     }
@@ -79,6 +97,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   };
 
   const handlePayment = async () => {
+    const token = localStorage.getItem("lagads-user-token");
     const validationError = validateCheckout();
     if (validationError) {
       showStatus("error", validationError);
@@ -108,7 +127,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           variant_id: Number(item.variant.id),
           quantity: item.quantity
         }))
-      });
+      }, token || "");
 
       const razorpay = new RazorpayCheckout({
         key: razorpayKeyId,
@@ -131,12 +150,20 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         modal: {
           ondismiss: () => {
             setIsSubmitting(false);
+            void notifyPaymentFailure(
+              {
+                razorpay_order_id: paymentOrder.order_id,
+                reason: "cancelled",
+                description: "Customer closed the payment window before completing payment."
+              },
+              token || ""
+            ).catch(() => undefined);
             showStatus("error", "Payment was cancelled before completion.");
           }
         },
         handler: async (response) => {
           try {
-            const result = await verifyPayment(response);
+            const result = await verifyPayment(response, token || "");
             setIsSubmitting(false);
             showStatus(
               "success",
@@ -156,6 +183,15 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
 
       razorpay.on("payment.failed", (response) => {
         setIsSubmitting(false);
+        void notifyPaymentFailure(
+          {
+            razorpay_order_id: response.error?.metadata?.order_id ?? paymentOrder.order_id,
+            razorpay_payment_id: response.error?.metadata?.payment_id,
+            reason: response.error?.reason,
+            description: response.error?.description
+          },
+          token || ""
+        ).catch(() => undefined);
         showStatus(
           "error",
           response.error?.description ?? response.error?.reason ?? "Payment failed. Please try again."

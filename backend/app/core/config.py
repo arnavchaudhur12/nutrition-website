@@ -21,6 +21,7 @@ class Settings(BaseSettings):
 
     smtp_host: str = "smtp.office365.com"
     smtp_port: int = 587
+    smtp_use_tls: bool = True
     smtp_user: str = "customercare@lagadsnutrition.in"
     smtp_password: str = ""
     smtp_sender_name: str = "Lagads Nutrition"

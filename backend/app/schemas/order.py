@@ -69,6 +69,13 @@ class RazorpayVerifyRead(BaseModel):
     order_number: Optional[str] = None
 
 
+class RazorpayFailureRequest(BaseModel):
+    razorpay_order_id: str = Field(min_length=1)
+    razorpay_payment_id: Optional[str] = None
+    reason: Optional[str] = None
+    description: Optional[str] = None
+
+
 class OrderRead(BaseModel):
     order_number: str
     status: str
