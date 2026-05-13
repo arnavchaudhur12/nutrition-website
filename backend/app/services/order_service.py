@@ -40,6 +40,7 @@ class OrderService:
             buyer_email=payload.email,
             subject=f"Order confirmation for {order.order_number}",
             html_body=self._build_email_body(order),
+            attachments=[self._build_invoice_attachment(order)],
         )
 
         return {
@@ -137,6 +138,7 @@ class OrderService:
             buyer_email=order.email,
             subject=f"Order confirmation for {order.order_number}",
             html_body=self._build_email_body(order),
+            attachments=[self._build_invoice_attachment(order)],
         )
 
         return {"success": True, "order_number": order.order_number}
@@ -234,33 +236,138 @@ class OrderService:
         rows = "".join(
             [
                 (
-                    f"<tr><td>{item.product_name} - {item.flavour}</td>"
-                    f"<td>{item.variant_label}</td><td>{item.quantity}</td>"
-                    f"<td>Rs. {float(item.line_total):.2f}</td></tr>"
+                    f"<tr>"
+                    f"<td style='padding:10px;border-bottom:1px solid #e5e7eb;'>{item.product_name} - {item.flavour}</td>"
+                    f"<td style='padding:10px;border-bottom:1px solid #e5e7eb;'>{item.variant_label}</td>"
+                    f"<td style='padding:10px;border-bottom:1px solid #e5e7eb;text-align:center;'>{item.quantity}</td>"
+                    f"<td style='padding:10px;border-bottom:1px solid #e5e7eb;text-align:right;'>Rs. {float(item.line_total):.2f}</td>"
+                    f"</tr>"
                 )
                 for item in order.items
             ]
         )
         return (
-            f"<h2>Namaste from Lagads Nutrition</h2>"
-            f"<p>Your payment is confirmed for order <strong>{order.order_number}</strong>.</p>"
-            f"<table border='1' cellpadding='8' cellspacing='0'>"
-            f"<thead><tr><th>Product</th><th>Variant</th><th>Qty</th><th>Total</th></tr></thead>"
-            f"<tbody>{rows}</tbody></table>"
-            f"<p>Customer: {order.customer_name}<br/>"
-            f"Email: {order.email}<br/>"
-            f"Phone: {order.phone_number}<br/>"
-            f"Address: {order.delivery_address}</p>"
+            f"<div style='font-family:Arial,sans-serif;max-width:720px;margin:0 auto;color:#111827;'>"
+            f"<h2 style='margin-bottom:8px;'>Namaste from Lagads Nutrition</h2>"
+            f"<p style='margin-top:0;'>Your payment is confirmed for order "
+            f"<strong>{order.order_number}</strong>.</p>"
+            f"<div style='background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:16px;margin:20px 0;'>"
+            f"<p style='margin:0 0 8px;'><strong>Customer:</strong> {order.customer_name}</p>"
+            f"<p style='margin:0 0 8px;'><strong>Email:</strong> {order.email}</p>"
+            f"<p style='margin:0 0 8px;'><strong>Phone:</strong> {order.phone_number}</p>"
+            f"<p style='margin:0;'><strong>Delivery Address:</strong> {order.delivery_address}</p>"
+            f"</div>"
+            f"<table style='width:100%;border-collapse:collapse;border:1px solid #e5e7eb;border-radius:12px;overflow:hidden;'>"
+            f"<thead style='background:#111827;color:#ffffff;'>"
+            f"<tr><th style='padding:12px;text-align:left;'>Product</th>"
+            f"<th style='padding:12px;text-align:left;'>Variant</th>"
+            f"<th style='padding:12px;text-align:center;'>Qty</th>"
+            f"<th style='padding:12px;text-align:right;'>Total</th></tr></thead>"
+            f"<tbody>{rows}</tbody>"
+            f"<tfoot><tr>"
+            f"<td colspan='3' style='padding:12px;text-align:right;font-weight:bold;'>Grand Total</td>"
+            f"<td style='padding:12px;text-align:right;font-weight:bold;'>Rs. {float(order.total_amount):.2f}</td>"
+            f"</tr></tfoot></table>"
+            f"<p style='margin-top:20px;'>A PDF invoice is attached for your records.</p>"
+            f"</div>"
         )
 
     @staticmethod
     def _build_payment_failure_email_body(order: Order, reason: str) -> str:
         return (
-            f"<h2>Payment could not be completed</h2>"
-            f"<p>Order <strong>{order.order_number}</strong> is marked as payment failed.</p>"
-            f"<p>Reason: {reason}</p>"
-            f"<p>Customer: {order.customer_name}<br/>"
-            f"Email: {order.email}<br/>"
-            f"Phone: {order.phone_number}<br/>"
-            f"Address: {order.delivery_address}</p>"
+            f"<div style='font-family:Arial,sans-serif;max-width:720px;margin:0 auto;color:#111827;'>"
+            f"<h2 style='margin-bottom:8px;'>Payment could not be completed</h2>"
+            f"<p style='margin-top:0;'>Order <strong>{order.order_number}</strong> is marked as payment failed.</p>"
+            f"<div style='background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin:20px 0;'>"
+            f"<p style='margin:0 0 8px;'><strong>Reason:</strong> {reason}</p>"
+            f"<p style='margin:0 0 8px;'><strong>Customer:</strong> {order.customer_name}</p>"
+            f"<p style='margin:0 0 8px;'><strong>Email:</strong> {order.email}</p>"
+            f"<p style='margin:0 0 8px;'><strong>Phone:</strong> {order.phone_number}</p>"
+            f"<p style='margin:0;'><strong>Delivery Address:</strong> {order.delivery_address}</p>"
+            f"</div>"
+            f"<p>You can retry the payment from the website if needed.</p>"
+            f"</div>"
         )
+
+    @classmethod
+    def _build_invoice_attachment(cls, order: Order) -> tuple[str, bytes, str, str]:
+        filename = f"invoice-{order.order_number}.pdf"
+        return (filename, cls._render_invoice_pdf(order), "application", "pdf")
+
+    @classmethod
+    def _render_invoice_pdf(cls, order: Order) -> bytes:
+        lines = [
+            "Lagads Nutrition Invoice",
+            f"Invoice No: {order.order_number}",
+            f"Date: {order.created_at.strftime('%d %b %Y %I:%M %p') if order.created_at else ''}",
+            "",
+            f"Customer: {order.customer_name}",
+            f"Email: {order.email}",
+            f"Phone: {order.phone_number}",
+            f"Address: {order.delivery_address}",
+            "",
+            "Items:",
+        ]
+
+        for item in order.items:
+            lines.append(
+                f"- {item.product_name} | {item.flavour} | {item.variant_label} | "
+                f"Qty {item.quantity} | Rs. {float(item.line_total):.2f}"
+            )
+
+        lines.extend(
+            [
+                "",
+                f"Grand Total: Rs. {float(order.total_amount):.2f}",
+                "",
+                "Thank you for shopping with Lagads Nutrition.",
+            ]
+        )
+
+        content_lines = ["BT", "/F1 12 Tf", "50 790 Td"]
+        for index, line in enumerate(lines):
+            if index:
+                content_lines.append("0 -18 Td")
+            content_lines.append(f"({cls._escape_pdf_text(line)}) Tj")
+        content_lines.append("ET")
+
+        content = "\n".join(content_lines).encode("latin-1", "replace")
+        objects = [
+            b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
+            b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
+            (
+                b"3 0 obj\n"
+                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+                b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\n"
+                b"endobj\n"
+            ),
+            b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+            (
+                f"5 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
+                + content
+                + b"\nendstream\nendobj\n"
+            ),
+        ]
+
+        pdf = bytearray(b"%PDF-1.4\n")
+        offsets: list[int] = [0]
+        for obj in objects:
+            offsets.append(len(pdf))
+            pdf.extend(obj)
+
+        xref_offset = len(pdf)
+        pdf.extend(f"xref\n0 {len(offsets)}\n".encode("ascii"))
+        pdf.extend(b"0000000000 65535 f \n")
+        for offset in offsets[1:]:
+            pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+        pdf.extend(
+            (
+                f"trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\n"
+                f"startxref\n{xref_offset}\n%%EOF"
+            ).encode("ascii")
+        )
+        return bytes(pdf)
+
+    @staticmethod
+    def _escape_pdf_text(value: str) -> str:
+        return value.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
