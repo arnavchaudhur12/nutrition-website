@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-import { createPaymentOrder, notifyPaymentFailure, verifyPayment } from "../services/payments";
+import { createPaymentOrder, notifyPaymentFailure, previewCoupon, verifyPayment } from "../services/payments";
 import type { Product } from "../types";
 
 type CheckoutSectionProps = {
@@ -16,7 +16,8 @@ const initialFormState = {
   phoneNumber: "",
   email: "",
   alternatePhoneNumber: "",
-  comments: ""
+  comments: "",
+  couponCode: ""
 };
 
 function formatRupees(amount: number) {
@@ -34,6 +35,8 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [couponDiscountPercent, setCouponDiscountPercent] = useState(0);
+  const [couponStatus, setCouponStatus] = useState("");
 
   useEffect(() => {
     if (!user) {
@@ -62,6 +65,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const totalAmount = enrichedCart.reduce(
     (total, item) => total + item.variant.sellingPrice * item.quantity,
     0
+  );
+  const discountedTotal = Math.max(
+    1,
+    Math.round((totalAmount * ((100 - couponDiscountPercent) / 100)) * 100) / 100
   );
 
   const updateField = (field: keyof typeof form, value: string) => {
@@ -122,6 +129,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         alternate_phone_number: form.alternatePhoneNumber || undefined,
         delivery_address: form.deliveryAddress,
         comments: form.comments || undefined,
+        coupon_code: form.couponCode.trim() || undefined,
         items: enrichedCart.map((item) => ({
           product_slug: item.product.id,
           variant_id: Number(item.variant.id),
@@ -205,6 +213,43 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     }
   };
 
+  useEffect(() => {
+    const token = localStorage.getItem("lagads-user-token");
+    const couponCode = form.couponCode.trim().toUpperCase();
+    if (!couponCode) {
+      setCouponDiscountPercent(0);
+      setCouponStatus("");
+      return;
+    }
+    if (couponCode.length !== 6 || !/^[A-Z0-9]{6}$/.test(couponCode)) {
+      setCouponDiscountPercent(0);
+      setCouponStatus("Coupon must be exactly 6 letters or numbers.");
+      return;
+    }
+    if (!token) {
+      setCouponDiscountPercent(0);
+      setCouponStatus("Login first to validate coupon.");
+      return;
+    }
+
+    let cancelled = false;
+    void previewCoupon(couponCode, token)
+      .then((result) => {
+        if (cancelled) return;
+        setCouponDiscountPercent(result.discount_percent);
+        setCouponStatus(`${result.discount_percent}% discount applied.`);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCouponDiscountPercent(0);
+        setCouponStatus("Invalid coupon code.");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.couponCode]);
+
   return (
     <section className="checkout-shell" id="checkout">
       <div>
@@ -261,6 +306,15 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           />
         </label>
         <label className="field">
+          <span>Coupon Code (Optional)</span>
+          <input
+            placeholder="Enter 6-character coupon"
+            value={form.couponCode}
+            onChange={(event) => updateField("couponCode", event.target.value.toUpperCase())}
+            maxLength={6}
+          />
+        </label>
+        <label className="field">
           <span>Comments or Special Request</span>
           <textarea
             placeholder="Any delivery notes or preferences"
@@ -270,9 +324,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           />
         </label>
         <div className="checkout-summary">
-          <span>Cart Total</span>
-          <strong>{formatRupees(totalAmount)}</strong>
+          <span>{couponDiscountPercent > 0 ? "Discounted Total" : "Cart Total"}</span>
+          <strong>{formatRupees(couponDiscountPercent > 0 ? discountedTotal : totalAmount)}</strong>
         </div>
+        {couponStatus ? <p className={`status-message ${couponDiscountPercent > 0 ? "success" : "error"}`}>{couponStatus}</p> : null}
         <button
           type="button"
           className="pill pill-primary"

@@ -183,11 +183,10 @@ export function InfoSections() {
       <section className="terms-section" id="terms-conditions">
         <div className="terms-intro">
           <p className="eyebrow">Terms & Conditions</p>
-          <h2>Website usage, orders, delivery, and customer support terms</h2>
+          <h2>Legal policies designed for clarity and trust</h2>
           <p>
-            These Terms and Conditions ("Terms") govern the use of the website Lagad's Nutrition
-            ("Website") operated by Lagad's Nutrition ("we", "our", "us"). By accessing or using
-            this Website, you agree to comply with and be bound by these Terms.
+            Browse policy headings below. Click any heading to view full details in a focused
+            popup without cluttering the page.
           </p>
         </div>
         <div className="terms-grid">
@@ -198,7 +197,7 @@ export function InfoSections() {
                 className="terms-open-button"
                 onClick={() => setOpenTermTitle(section.title)}
               >
-                {section.title}
+                <span>{section.title}</span>
               </button>
             </article>
           ))}

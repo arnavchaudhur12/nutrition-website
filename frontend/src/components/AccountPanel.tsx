@@ -2,13 +2,17 @@ import { useState } from "react";
 import { buildAuthUser, useAuth } from "../context/AuthContext";
 import { fetchCurrentUser, login, register } from "../services/auth";
 import {
+  createAdminCoupon,
   createAdminProduct,
+  deleteAdminCoupon,
   deleteAdminProduct,
+  fetchAdminCoupons,
   fetchAdminHero,
   fetchAdminMetrics,
   fetchAdminProducts,
   resolveImageUrl,
   type AdminMetrics,
+  type CouponCode,
   type HeroPayload,
   updateAdminProduct,
   updateAdminHero,
@@ -60,7 +64,7 @@ const emptyProductForm = (): ProductFormState => ({
   name: "Peanut Butter",
   flavour: "",
   description: "",
-  image_urls: ["", "", ""],
+  image_urls: ["", "", "", "", ""],
   category: "Peanut Butter",
   variants: [
     { weight_label: "1kg", mrp: "", selling_price: "", stock_quantity: "100" },
@@ -77,7 +81,7 @@ const emptyHeroForm = (): HeroFormState => ({
   offer_text: "",
   badge_title: "",
   badge_subtitle: "",
-  image_urls: ["", "", ""]
+  image_urls: ["", "", "", "", ""]
 });
 
 function productToForm(product: AdminProduct): ProductFormState {
@@ -86,7 +90,7 @@ function productToForm(product: AdminProduct): ProductFormState {
     name: product.name,
     flavour: product.flavour,
     description: product.description,
-    image_urls: Array.from({ length: 3 }, (_, index) => product.images[index]?.image_url ?? ""),
+    image_urls: Array.from({ length: 5 }, (_, index) => product.images[index]?.image_url ?? ""),
     category: product.category,
     variants: product.variants.map((variant) => ({
       weight_label: variant.weight_label,
@@ -104,7 +108,7 @@ function buildProductPayload(form: ProductFormState) {
     flavour: form.flavour,
     description: form.description,
     image_url: form.image_urls.find((item) => item.trim()) || null,
-    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 3),
+    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 5),
     category: form.category,
     variants: form.variants.map((variant) => ({
       weight_label: variant.weight_label,
@@ -125,7 +129,7 @@ function heroToForm(hero: HeroConfig): HeroFormState {
     offer_text: hero.offer_text,
     badge_title: hero.badge_title,
     badge_subtitle: hero.badge_subtitle,
-    image_urls: Array.from({ length: 3 }, (_, index) => hero.images[index]?.image_url ?? "")
+    image_urls: Array.from({ length: 5 }, (_, index) => hero.images[index]?.image_url ?? "")
   };
 }
 
@@ -139,7 +143,7 @@ function buildHeroPayload(form: HeroFormState): HeroPayload {
     offer_text: form.offer_text,
     badge_title: form.badge_title,
     badge_subtitle: form.badge_subtitle,
-    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 3)
+    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 5)
   };
 }
 
@@ -150,6 +154,9 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [coupons, setCoupons] = useState<CouponCode[]>([]);
+  const [newCouponCode, setNewCouponCode] = useState("");
+  const [newCouponDiscount, setNewCouponDiscount] = useState("10");
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [products, setProducts] = useState<AdminProduct[]>([]);
   const [heroForm, setHeroForm] = useState<HeroFormState>(emptyHeroForm());
@@ -192,14 +199,16 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       loginUser(buildAuthUser(currentUser.email, currentUser.full_name, currentUser.is_admin));
       if (currentUser.is_admin) {
         localStorage.setItem("lagads-admin-token", response.access_token);
-        const [dashboardMetrics, catalog, hero] = await Promise.all([
+        const [dashboardMetrics, catalog, hero, couponList] = await Promise.all([
           fetchAdminMetrics(response.access_token),
           fetchAdminProducts(response.access_token),
-          fetchAdminHero(response.access_token)
+          fetchAdminHero(response.access_token),
+          fetchAdminCoupons(response.access_token)
         ]);
         setProducts(catalog);
         setHeroForm(heroToForm(hero));
         setMetrics(dashboardMetrics);
+        setCoupons(couponList);
         setEditingProductId(null);
         setProductForm(emptyProductForm());
         setView("admin");
@@ -247,14 +256,16 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     setLoading(true);
 
     try {
-      const [dashboardMetrics, catalog, hero] = await Promise.all([
+      const [dashboardMetrics, catalog, hero, couponList] = await Promise.all([
         fetchAdminMetrics(token),
         fetchAdminProducts(token),
-        fetchAdminHero(token)
+        fetchAdminHero(token),
+        fetchAdminCoupons(token)
       ]);
       setProducts(catalog);
       setHeroForm(heroToForm(hero));
       setMetrics(dashboardMetrics);
+      setCoupons(couponList);
       setEditingProductId(null);
       setProductForm(emptyProductForm());
       setView("admin");
@@ -287,12 +298,14 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   };
 
   const refreshAdminCatalog = async (token: string) => {
-    const [dashboardMetrics, catalog] = await Promise.all([
+    const [dashboardMetrics, catalog, couponList] = await Promise.all([
       fetchAdminMetrics(token),
-      fetchAdminProducts(token)
+      fetchAdminProducts(token),
+      fetchAdminCoupons(token)
     ]);
     setMetrics(dashboardMetrics);
     setProducts(catalog);
+    setCoupons(couponList);
   };
 
   const handleEditProduct = (product: AdminProduct) => {
@@ -481,6 +494,51 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     }
   };
 
+  const handleCreateCoupon = async () => {
+    resetFeedback();
+    const token = localStorage.getItem("lagads-admin-token");
+    if (!token) {
+      setError("Admin token missing. Please log in again.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await createAdminCoupon(token, {
+        code: newCouponCode.trim().toUpperCase(),
+        discount_percent: Number(newCouponDiscount)
+      });
+      await refreshAdminCatalog(token);
+      setNewCouponCode("");
+      setNewCouponDiscount("10");
+      setMessage("Coupon code created successfully.");
+    } catch (couponError) {
+      setError(couponError instanceof Error ? couponError.message : "Unable to create coupon code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteCoupon = async (code: string) => {
+    resetFeedback();
+    const token = localStorage.getItem("lagads-admin-token");
+    if (!token) {
+      setError("Admin token missing. Please log in again.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await deleteAdminCoupon(token, code);
+      await refreshAdminCatalog(token);
+      setMessage(`Coupon ${code} deleted successfully.`);
+    } catch (couponError) {
+      setError(couponError instanceof Error ? couponError.message : "Unable to delete coupon code.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <aside className={`panel ${open ? "open" : ""} ${view === "admin" ? "panel-admin" : ""}`}>
       <div className="drawer-header">
@@ -641,8 +699,59 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
               <div className="admin-layout">
                 <section className="admin-section">
                   <div className="admin-section-header">
+                    <h3>Coupon Codes</h3>
+                    <span>Create 6-character alphanumeric coupons with percentage discount.</span>
+                  </div>
+                  <div className="field">
+                    <span>Coupon Code</span>
+                    <input
+                      value={newCouponCode}
+                      maxLength={6}
+                      placeholder="e.g. SAVE10"
+                      onChange={(event) => setNewCouponCode(event.target.value.toUpperCase())}
+                    />
+                  </div>
+                  <div className="field">
+                    <span>Discount Percent</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={90}
+                      value={newCouponDiscount}
+                      onChange={(event) => setNewCouponDiscount(event.target.value)}
+                    />
+                  </div>
+                  <div className="admin-inline-actions">
+                    <button className="pill pill-primary" onClick={handleCreateCoupon} disabled={loading}>
+                      Add Coupon
+                    </button>
+                  </div>
+                  <div className="orders-list">
+                    {coupons.length === 0 ? (
+                      <p className="muted">No coupons created yet.</p>
+                    ) : (
+                      coupons.map((coupon) => (
+                        <article key={coupon.id} className="order-card">
+                          <div className="order-header">
+                            <strong>{coupon.code}</strong>
+                            <span>{coupon.discount_percent}% OFF</span>
+                          </div>
+                          <button
+                            className="pill pill-muted"
+                            onClick={() => handleDeleteCoupon(coupon.code)}
+                          >
+                            Delete
+                          </button>
+                        </article>
+                      ))
+                    )}
+                  </div>
+                </section>
+
+                <section className="admin-section">
+                  <div className="admin-section-header">
                     <h3>Homepage Hero</h3>
-                    <span>Control the main banner text, badge copy, CTA, and up to 3 hero images.</span>
+                    <span>Control the main banner text, badge copy, CTA, and up to 5 hero images.</span>
                   </div>
 
                   <div className="field">
@@ -705,7 +814,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   </div>
                   <div className="field">
                     <span>Hero Images</span>
-                    <p className="muted">Upload up to 3 hero images. They rotate automatically on the homepage.</p>
+                    <p className="muted">Upload up to 5 hero images. They rotate automatically on the homepage.</p>
                     <div className="admin-image-grid">
                       {heroForm.image_urls.map((imageUrl, index) => (
                         <div key={`hero-image-${index}`} className="admin-image-slot">
@@ -826,7 +935,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   </div>
                   <div className="field">
                     <span>Product Images</span>
-                    <p className="muted">Upload up to 3 images. The first image becomes the main storefront image.</p>
+                    <p className="muted">Upload up to 5 images. The first image becomes the main storefront image.</p>
                     <div className="admin-image-grid">
                       {productForm.image_urls.map((imageUrl, index) => (
                         <div key={`product-image-${index}`} className="admin-image-slot">

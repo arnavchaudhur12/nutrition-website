@@ -10,6 +10,7 @@ export type CreatePaymentOrderPayload = {
   alternate_phone_number?: string;
   delivery_address?: string;
   comments?: string;
+  coupon_code?: string;
   items?: Array<{
     product_slug: string;
     variant_id: number;
@@ -41,6 +42,11 @@ export type PaymentFailurePayload = {
   razorpay_payment_id?: string;
   reason?: string;
   description?: string;
+};
+
+export type CouponPreview = {
+  code: string;
+  discount_percent: number;
 };
 
 async function parseError(response: Response, fallback: string): Promise<Error> {
@@ -104,4 +110,20 @@ export async function notifyPaymentFailure(
   }
 
   return (await response.json()) as VerifyPaymentResult;
+}
+
+export async function previewCoupon(code: string, token: string): Promise<CouponPreview> {
+  const response = await fetch(
+    `${API_BASE_URL}/coupon-preview?code=${encodeURIComponent(code)}`,
+    {
+      method: "GET",
+      headers: authHeaders(token),
+    }
+  );
+
+  if (!response.ok) {
+    throw await parseError(response, "Invalid coupon code.");
+  }
+
+  return (await response.json()) as CouponPreview;
 }

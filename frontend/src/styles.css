@@ -571,9 +571,10 @@ main {
   margin-top: 2.5rem;
   padding: 1.75rem 2rem;
   border-radius: 28px;
-  background: var(--surface);
-  box-shadow: 0 18px 40px rgba(15, 62, 65, 0.08);
-  border: 1px solid var(--border);
+  background: linear-gradient(180deg, #030303 0%, #0c0c0c 100%);
+  box-shadow: 0 24px 50px rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: #f7f7f7;
 }
 
 .terms-intro {
@@ -582,23 +583,33 @@ main {
   gap: 1.5rem;
 }
 
+.terms-intro .eyebrow {
+  color: #ffa75a;
+}
+
+.terms-intro h2 {
+  color: #ffffff;
+  font-size: clamp(1.25rem, 2.1vw, 1.8rem);
+}
+
 .terms-intro p:last-child {
   margin: 0;
-  color: var(--muted);
-  line-height: 1.7;
+  color: rgba(255, 255, 255, 0.75);
+  line-height: 1.6;
+  font-size: 0.95rem;
 }
 
 .terms-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
 }
 
 .terms-card {
-  padding: 1rem;
+  padding: 0;
   border-radius: 18px;
-  background: #fffaf3;
-  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .terms-card h3 {
@@ -614,14 +625,26 @@ main {
 
 .terms-open-button {
   width: 100%;
-  border: 1px solid var(--border);
-  background: white;
+  border: 0;
+  background: transparent;
   border-radius: 14px;
-  padding: 0.85rem 1rem;
+  padding: 0.95rem 1rem;
   text-align: left;
-  font-weight: 800;
-  color: var(--ink);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: #ffffff;
   cursor: pointer;
+}
+
+.terms-open-arrow {
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #ffb471;
 }
 
 .terms-modal-overlay {
@@ -655,6 +678,7 @@ main {
 
 .terms-modal-header h3 {
   margin: 0;
+  font-size: 1.05rem;
 }
 
 .terms-modal-content {
@@ -666,7 +690,8 @@ main {
 .terms-modal-content p {
   margin: 0;
   color: var(--muted);
-  line-height: 1.6;
+  line-height: 1.55;
+  font-size: 0.92rem;
 }
 
 .muted {

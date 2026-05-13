@@ -49,7 +49,7 @@ class ProductCreate(BaseModel):
     flavour: str = Field(min_length=1, max_length=120)
     description: str = Field(min_length=1)
     image_url: Optional[str] = None
-    image_urls: list[str] = Field(default_factory=list, max_length=3)
+    image_urls: list[str] = Field(default_factory=list, max_length=5)
     category: str = Field(default="Peanut Butter", min_length=1, max_length=80)
     variants: list[ProductVariantBase] = Field(min_length=1)
 

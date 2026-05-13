@@ -29,6 +29,7 @@ class RazorpayOrderCreateRequest(BaseModel):
     alternate_phone_number: Optional[str] = None
     delivery_address: Optional[str] = None
     comments: Optional[str] = None
+    coupon_code: Optional[str] = None
     items: list[OrderItemRequest] = Field(default_factory=list)
 
     @model_validator(mode="after")

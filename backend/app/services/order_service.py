@@ -1,4 +1,5 @@
 from uuid import uuid4
+from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -15,6 +16,7 @@ from app.schemas.order import (
 )
 from app.services.email_service import EmailService
 from app.services.payment_service import PaymentService
+from app.services.coupon_service import CouponService
 
 
 class OrderService:
@@ -24,6 +26,7 @@ class OrderService:
         self.products = ProductRepository(db)
         self.payment_service = PaymentService()
         self.email_service = EmailService()
+        self.coupon_service = CouponService(db)
 
     def create_order(self, payload: OrderCreateRequest) -> dict[str, object]:
         order = self._build_order(payload)
@@ -75,7 +78,11 @@ class OrderService:
             )
             order = self._build_order(order_payload)
             app_order_number = order.order_number
-            amount_paise = max(100, int(round(float(order.total_amount) * 100)))
+            subtotal = float(order.total_amount)
+            discount_percent = self._get_coupon_discount_percent(payload.coupon_code)
+            discounted_total = self._apply_discount(subtotal, discount_percent)
+            order.total_amount = discounted_total
+            amount_paise = max(100, int(round(discounted_total * 100)))
             receipt = receipt or order.order_number
         else:
             amount_paise = payload.amount or 0
@@ -96,6 +103,18 @@ class OrderService:
             **payment_order,
             "app_order_number": app_order_number,
         }
+
+    def _get_coupon_discount_percent(self, coupon_code: Optional[str] = None) -> int:
+        if not coupon_code:
+            return 0
+        return self.coupon_service.get_discount_percent(coupon_code)
+
+    @staticmethod
+    def _apply_discount(amount: float, discount_percent: int) -> float:
+        if discount_percent <= 0:
+            return amount
+        discount_amount = (amount * discount_percent) / 100
+        return max(1.0, round(amount - discount_amount, 2))
 
     def verify_razorpay_payment(
         self, payload: RazorpayVerifyRequest, current_user: User

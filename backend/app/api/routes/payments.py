@@ -41,3 +41,14 @@ def mark_razorpay_payment_failed(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, object]:
     return OrderService(db).mark_razorpay_payment_failed(payload, current_user)
+
+
+@router.get("/coupon-preview")
+def preview_coupon_discount(
+    code: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, object]:
+    _ = current_user
+    discount_percent = OrderService(db).coupon_service.get_discount_percent(code)
+    return {"code": code.strip().upper(), "discount_percent": discount_percent}

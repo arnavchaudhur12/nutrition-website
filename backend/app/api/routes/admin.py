@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_admin
 from app.db.session import get_db
+from app.schemas.coupon import CouponCreateRequest, CouponRead
 from app.schemas.hero import HeroSettingsRead, HeroSettingsUpdate
 from app.schemas.product import ProductCreate, ProductRead
+from app.services.coupon_service import CouponService
 from app.services.hero_service import HeroService
 from app.services.product_service import ProductService
 
@@ -50,6 +52,33 @@ def create_product(
     _admin=Depends(get_current_admin),
 ) -> ProductRead:
     return ProductService(db).create_product(payload)
+
+
+@router.get("/coupons", response_model=list[CouponRead])
+def list_coupon_codes(
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+) -> list[CouponRead]:
+    return CouponService(db).list_codes()
+
+
+@router.post("/coupons", response_model=CouponRead)
+def create_coupon_code(
+    payload: CouponCreateRequest,
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+) -> CouponRead:
+    return CouponService(db).create_code(payload)
+
+
+@router.delete("/coupons/{code}")
+def delete_coupon_code(
+    code: str,
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+) -> dict[str, str]:
+    CouponService(db).delete_code(code)
+    return {"message": "Coupon deleted successfully."}
 
 
 @router.put("/products/{product_id}", response_model=ProductRead)

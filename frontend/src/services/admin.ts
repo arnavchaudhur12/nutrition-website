@@ -9,6 +9,13 @@ export type AdminMetrics = {
   note: string;
 };
 
+export type CouponCode = {
+  id: number;
+  code: string;
+  discount_percent: number;
+  created_at: string;
+};
+
 export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
   const response = await fetch(`${API_BASE_URL}/admin/metrics`, {
     headers: {
@@ -157,4 +164,34 @@ export async function uploadAdminImage(token: string, file: File): Promise<strin
 
   const body = await parseJson<{ image_url: string }>(response, "Unable to upload image.");
   return body.image_url;
+}
+
+export async function fetchAdminCoupons(token: string): Promise<CouponCode[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons`, {
+    headers: authHeaders(token)
+  });
+  return parseJson<CouponCode[]>(response, "Unable to load coupon codes.");
+}
+
+export async function createAdminCoupon(
+  token: string,
+  payload: { code: string; discount_percent: number }
+): Promise<CouponCode> {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons`, {
+    method: "POST",
+    headers: {
+      ...authHeaders(token),
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+  return parseJson<CouponCode>(response, "Unable to create coupon code.");
+}
+
+export async function deleteAdminCoupon(token: string, code: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/admin/coupons/${encodeURIComponent(code)}`, {
+    method: "DELETE",
+    headers: authHeaders(token)
+  });
+  await parseJson<{ message: string }>(response, "Unable to delete coupon code.");
 }

@@ -1,3 +1,4 @@
+from app.models.coupon import CouponCode
 from app.models.feedback import Feedback
 from app.models.hero import HeroImage, HeroSettings
 from app.models.newsletter import NewsletterSubscriber
@@ -7,6 +8,7 @@ from app.models.user import User
 
 __all__ = [
     "Feedback",
+    "CouponCode",
     "HeroImage",
     "HeroSettings",
     "NewsletterSubscriber",
