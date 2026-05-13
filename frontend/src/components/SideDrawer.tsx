@@ -5,7 +5,7 @@ type SideDrawerProps = {
   onClose: () => void;
 };
 
-const menuItems = ["Peanut Butter", "About Us", "Customer Feedback", "Newsletter"];
+const menuItems = ["Peanut Butter", "About Us", "Customer Feedback", "Newsletter", "Terms Conditions"];
 
 export function SideDrawer({ open, onClose }: SideDrawerProps) {
   return (
@@ -26,4 +26,3 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
     </aside>
   );
 }
-

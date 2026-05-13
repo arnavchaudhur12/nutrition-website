@@ -77,7 +77,8 @@ select {
 .section-heading h2,
 .split-section h2,
 .newsletter-box h2,
-.checkout-shell h2 {
+.checkout-shell h2,
+.terms-section h2 {
   margin: 0;
   font-family: "League Spartan", sans-serif;
   letter-spacing: -0.03em;
@@ -524,6 +525,53 @@ main {
   border: 1px solid var(--border);
 }
 
+.terms-section {
+  display: grid;
+  gap: 1.5rem;
+  margin-top: 2.5rem;
+  padding: 1.75rem 2rem;
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: 0 18px 40px rgba(15, 62, 65, 0.08);
+  border: 1px solid var(--border);
+}
+
+.terms-intro {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 1.5rem;
+}
+
+.terms-intro p:last-child {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.7;
+}
+
+.terms-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.terms-card {
+  padding: 1rem;
+  border-radius: 18px;
+  background: #fffaf3;
+  border: 1px solid var(--border);
+}
+
+.terms-card h3 {
+  margin: 0 0 0.7rem;
+  color: var(--ink);
+}
+
+.terms-card p {
+  margin: 0.45rem 0 0;
+  color: var(--muted);
+  line-height: 1.55;
+}
+
 .muted {
   color: var(--muted);
 }
@@ -708,7 +756,9 @@ main {
   .split-section,
   .newsletter-box,
   .checkout-shell,
-  .product-card {
+  .product-card,
+  .terms-intro,
+  .terms-grid {
     grid-template-columns: 1fr;
   }
 
@@ -766,6 +816,7 @@ main {
   .split-section,
   .newsletter-box,
   .checkout-shell,
+  .terms-section,
   .product-body {
     padding: 1.25rem;
   }
