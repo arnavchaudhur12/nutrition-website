@@ -1,4 +1,174 @@
-export function CheckoutSection() {
+import { useMemo, useState } from "react";
+import { useCart } from "../context/CartContext";
+import { createPaymentOrder, verifyPayment } from "../services/payments";
+import type { Product } from "../types";
+
+type CheckoutSectionProps = {
+  products: Product[];
+};
+
+const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? "";
+
+const initialFormState = {
+  customerName: "",
+  deliveryAddress: "",
+  phoneNumber: "",
+  email: "",
+  alternatePhoneNumber: "",
+  comments: ""
+};
+
+function formatRupees(amount: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0
+  }).format(amount);
+}
+
+export function CheckoutSection({ products }: CheckoutSectionProps) {
+  const { items } = useCart();
+  const [form, setForm] = useState(initialFormState);
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusType, setStatusType] = useState<"success" | "error" | "">("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const enrichedCart = useMemo(
+    () =>
+      items
+        .map((item) => {
+          const product = products.find((candidate) => candidate.id === item.productId);
+          const variant = product?.variants.find((candidate) => candidate.id === item.variantId);
+          return product && variant ? { ...item, product, variant } : null;
+        })
+        .filter((item): item is NonNullable<typeof item> => Boolean(item)),
+    [items, products]
+  );
+
+  const totalAmount = enrichedCart.reduce(
+    (total, item) => total + item.variant.sellingPrice * item.quantity,
+    0
+  );
+
+  const updateField = (field: keyof typeof form, value: string) => {
+    setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const showStatus = (type: "success" | "error", message: string) => {
+    setStatusType(type);
+    setStatusMessage(message);
+  };
+
+  const validateCheckout = () => {
+    if (!razorpayKeyId) {
+      return "Razorpay public key is not configured.";
+    }
+    if (!window.Razorpay) {
+      return "Razorpay checkout script is still loading. Please try again.";
+    }
+    if (enrichedCart.length === 0) {
+      return "Add at least one product to the cart before payment.";
+    }
+    if (!form.customerName || !form.deliveryAddress || !form.phoneNumber || !form.email) {
+      return "Please fill name, delivery address, phone number, and email.";
+    }
+    if (totalAmount < 1) {
+      return "Minimum payment amount is Rs. 1.";
+    }
+    return "";
+  };
+
+  const handlePayment = async () => {
+    const validationError = validateCheckout();
+    if (validationError) {
+      showStatus("error", validationError);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setStatusMessage("");
+    setStatusType("");
+
+    try {
+      const RazorpayCheckout = window.Razorpay;
+      if (!RazorpayCheckout) {
+        throw new Error("Razorpay checkout script is still loading. Please try again.");
+      }
+
+      const paymentOrder = await createPaymentOrder({
+        currency: "INR",
+        customer_name: form.customerName,
+        email: form.email,
+        phone_number: form.phoneNumber,
+        alternate_phone_number: form.alternatePhoneNumber || undefined,
+        delivery_address: form.deliveryAddress,
+        comments: form.comments || undefined,
+        items: enrichedCart.map((item) => ({
+          product_slug: item.product.id,
+          variant_id: Number(item.variant.id),
+          quantity: item.quantity
+        }))
+      });
+
+      const razorpay = new RazorpayCheckout({
+        key: razorpayKeyId,
+        amount: paymentOrder.amount,
+        currency: paymentOrder.currency,
+        name: "Lagad's Nutrition",
+        description: "Nutrition products order",
+        order_id: paymentOrder.order_id,
+        prefill: {
+          name: form.customerName,
+          email: form.email,
+          contact: form.phoneNumber
+        },
+        notes: {
+          order_number: paymentOrder.app_order_number ?? undefined
+        },
+        theme: {
+          color: "#ff7a00"
+        },
+        modal: {
+          ondismiss: () => {
+            setIsSubmitting(false);
+            showStatus("error", "Payment was cancelled before completion.");
+          }
+        },
+        handler: async (response) => {
+          try {
+            const result = await verifyPayment(response);
+            setIsSubmitting(false);
+            showStatus(
+              "success",
+              result.order_number
+                ? `Payment verified. Order ${result.order_number} is confirmed.`
+                : "Payment verified successfully."
+            );
+          } catch (error) {
+            setIsSubmitting(false);
+            showStatus(
+              "error",
+              error instanceof Error ? error.message : "Payment verification failed."
+            );
+          }
+        }
+      });
+
+      razorpay.on("payment.failed", (response) => {
+        setIsSubmitting(false);
+        showStatus(
+          "error",
+          response.error?.description ?? response.error?.reason ?? "Payment failed. Please try again."
+        );
+      });
+
+      razorpay.open();
+    } catch (error) {
+      setIsSubmitting(false);
+      showStatus("error", error instanceof Error ? error.message : "Unable to start payment.");
+    }
+  };
+
   return (
     <section className="checkout-shell" id="checkout">
       <div>
@@ -14,33 +184,71 @@ export function CheckoutSection() {
       <form className="checkout-form">
         <label className="field">
           <span>Full Name</span>
-          <input placeholder="Enter full name" />
+          <input
+            placeholder="Enter full name"
+            value={form.customerName}
+            onChange={(event) => updateField("customerName", event.target.value)}
+          />
         </label>
         <label className="field">
           <span>Delivery Address</span>
-          <textarea placeholder="House number, street, city, state, pin code" rows={4} />
+          <textarea
+            placeholder="House number, street, city, state, pin code"
+            rows={4}
+            value={form.deliveryAddress}
+            onChange={(event) => updateField("deliveryAddress", event.target.value)}
+          />
         </label>
         <label className="field">
           <span>Phone Number</span>
-          <input placeholder="Primary mobile number" />
+          <input
+            placeholder="Primary mobile number"
+            value={form.phoneNumber}
+            onChange={(event) => updateField("phoneNumber", event.target.value)}
+          />
         </label>
         <label className="field">
           <span>Email Address</span>
-          <input placeholder="your@email.com" />
+          <input
+            type="email"
+            placeholder="your@email.com"
+            value={form.email}
+            onChange={(event) => updateField("email", event.target.value)}
+          />
         </label>
         <label className="field">
           <span>Alternative Phone Number</span>
-          <input placeholder="Optional alternate mobile number" />
+          <input
+            placeholder="Optional alternate mobile number"
+            value={form.alternatePhoneNumber}
+            onChange={(event) => updateField("alternatePhoneNumber", event.target.value)}
+          />
         </label>
         <label className="field">
           <span>Comments or Special Request</span>
-          <textarea placeholder="Any delivery notes or preferences" rows={3} />
+          <textarea
+            placeholder="Any delivery notes or preferences"
+            rows={3}
+            value={form.comments}
+            onChange={(event) => updateField("comments", event.target.value)}
+          />
         </label>
-        <button type="button" className="pill pill-primary">
-          Continue to Payment Gateway
+        <div className="checkout-summary">
+          <span>Cart Total</span>
+          <strong>{formatRupees(totalAmount)}</strong>
+        </div>
+        <button
+          type="button"
+          className="pill pill-primary"
+          onClick={handlePayment}
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
         </button>
+        {statusMessage ? (
+          <p className={`status-message ${statusType}`}>{statusMessage}</p>
+        ) : null}
       </form>
     </section>
   );
 }
-

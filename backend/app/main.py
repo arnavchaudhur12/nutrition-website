@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import admin, auth, feedback, health, hero, metrics, newsletter, orders, products
+from app.api.routes import admin, auth, feedback, health, hero, metrics, newsletter, orders, payments, products
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
@@ -39,6 +39,7 @@ app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 app.include_router(newsletter.router, prefix="/api/newsletter", tags=["newsletter"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(metrics.router, prefix="/api/admin/metrics", tags=["metrics"])
+app.include_router(payments.router, prefix="/api", tags=["payments"])
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 

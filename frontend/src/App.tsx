@@ -117,7 +117,7 @@ export default function App() {
             : null}
         </section>
 
-        <CheckoutSection />
+        <CheckoutSection products={products} />
         <InfoSections />
       </main>
     </div>

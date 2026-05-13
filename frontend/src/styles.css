@@ -241,6 +241,11 @@ main {
   background: #fff4e5;
 }
 
+.pill:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
 .section-heading,
 .split-section,
 .newsletter-box,
@@ -388,6 +393,17 @@ main {
 
 .checkout-row {
   margin-top: 1.4rem;
+}
+
+.checkout-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin: 1rem 0;
+  padding: 1rem;
+  border-radius: 16px;
+  background: #fff4e5;
+  border: 1px solid var(--border);
 }
 
 .drawer,

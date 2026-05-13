@@ -30,9 +30,10 @@ class Settings(BaseSettings):
     payment_key_id: str = ""
     payment_key_secret: str = ""
     payment_webhook_secret: str = ""
+    razorpay_key_id: str = ""
+    razorpay_key_secret: str = ""
 
 
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
