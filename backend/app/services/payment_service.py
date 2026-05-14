@@ -55,9 +55,15 @@ class PaymentService:
                 }
             )
         except BadRequestError as error:
+            error_message = str(error)
+            if "authentication failed" in error_message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Razorpay authentication failed. Check KEY_ID and KEY_SECRET on the server.",
+                ) from error
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=str(error),
+                detail=error_message,
             ) from error
         except (GatewayError, ServerError) as error:
             raise HTTPException(
@@ -68,6 +74,17 @@ class PaymentService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Unable to reach Razorpay.",
+            ) from error
+        except Exception as error:
+            error_message = str(error)
+            if "authentication failed" in error_message.lower():
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Razorpay authentication failed. Check KEY_ID and KEY_SECRET on the server.",
+                ) from error
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Unexpected error while creating Razorpay order.",
             ) from error
 
         return {
