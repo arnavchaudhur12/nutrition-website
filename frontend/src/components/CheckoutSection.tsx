@@ -72,7 +72,7 @@ function formatRupees(amount: number) {
 
 export function CheckoutSection({ products }: CheckoutSectionProps) {
   const { user } = useAuth();
-  const { items } = useCart();
+  const { items, clearCart } = useCart();
   const [form, setForm] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
@@ -260,6 +260,13 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             const result = await verifyPayment(response, activeToken);
             setIsSubmitting(false);
             paymentFlowLock.current = false;
+            clearCart();
+            setCouponDiscountPercent(0);
+            setCouponStatus("");
+            setForm(initialFormState);
+            window.alert(
+              "Thank you for your purchase from Lagads Nutrition! Please stay on this website for a couple of seconds and do not refresh."
+            );
             showStatus(
               "success",
               result.order_number

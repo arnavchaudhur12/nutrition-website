@@ -34,7 +34,7 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
         <h2>{hero.headline}</h2>
         <p>{hero.body_text}</p>
         <div className="hero-actions">
-          <a className="pill pill-primary" href={hero.cta_link}>
+          <a className="pill pill-primary" href="#products">
             {hero.cta_label}
           </a>
           <span className="hero-offer">{hero.offer_text}</span>
