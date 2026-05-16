@@ -55,22 +55,22 @@ class OrderService:
         }
 
     def create_razorpay_order(
-        self, payload: RazorpayOrderCreateRequest, current_user: User
+        self, payload: RazorpayOrderCreateRequest, current_user: Optional[User]
     ) -> dict[str, object]:
         app_order_number = None
         receipt = payload.receipt
 
         if payload.items:
-            if payload.email and str(payload.email).lower() != current_user.email.lower():
+            if current_user and payload.email and str(payload.email).lower() != current_user.email.lower():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Checkout email must match the logged-in account.",
                 )
 
             order_payload = OrderCreateRequest(
-                customer_name=payload.customer_name or current_user.full_name,
-                email=current_user.email,
-                phone_number=payload.phone_number or current_user.phone_number or "",
+                customer_name=payload.customer_name or (current_user.full_name if current_user else ""),
+                email=current_user.email if current_user else payload.email,  # type: ignore[arg-type]
+                phone_number=payload.phone_number or (current_user.phone_number if current_user else "") or "",
                 alternate_phone_number=payload.alternate_phone_number,
                 delivery_address=payload.delivery_address or "",
                 comments=payload.comments,
@@ -117,7 +117,7 @@ class OrderService:
         return max(1.0, round(amount - discount_amount, 2))
 
     def verify_razorpay_payment(
-        self, payload: RazorpayVerifyRequest, current_user: User
+        self, payload: RazorpayVerifyRequest, current_user: Optional[User]
     ) -> dict[str, object]:
         if (
             not payload.razorpay_order_id
@@ -144,7 +144,8 @@ class OrderService:
         order = self.orders.get_by_payment_reference(payload.razorpay_order_id)
         if not order:
             return {"success": True, "order_number": None}
-        self._ensure_order_owner(order, current_user)
+        if current_user:
+            self._ensure_order_owner(order, current_user)
 
         order.status = "confirmed"
         order.payment_status = "paid"
@@ -163,12 +164,13 @@ class OrderService:
         return {"success": True, "order_number": order.order_number}
 
     def mark_razorpay_payment_failed(
-        self, payload: RazorpayFailureRequest, current_user: User
+        self, payload: RazorpayFailureRequest, current_user: Optional[User]
     ) -> dict[str, object]:
         order = self.orders.get_by_payment_reference(payload.razorpay_order_id)
         if not order:
             return {"success": True, "order_number": None}
-        self._ensure_order_owner(order, current_user)
+        if current_user:
+            self._ensure_order_owner(order, current_user)
 
         order.status = "payment_failed"
         order.payment_status = "failed"
@@ -357,49 +359,99 @@ class OrderService:
 
     @classmethod
     def _render_invoice_pdf(cls, order: Order) -> bytes:
-        lines = [
-            "Lagads Nutrition Invoice",
-            f"Invoice No: {order.order_number}",
-            f"Date: {order.created_at.strftime('%d %b %Y %I:%M %p') if order.created_at else ''}",
-            "",
-            f"Customer: {order.customer_name}",
-            f"Email: {order.email}",
-            f"Phone: {order.phone_number}",
-            f"Address: {order.delivery_address}",
-            "",
-            "Items:",
-        ]
+        total_amount = float(order.total_amount)
+        invoice_date = order.created_at.strftime("%d-%m-%Y") if order.created_at else ""
+        total_quantity = sum(item.quantity for item in order.items)
 
-        for item in order.items:
-            lines.append(
-                f"- {item.product_name} | {item.flavour} | {item.variant_label} | "
-                f"Qty {item.quantity} | Rs. {float(item.line_total):.2f}"
-            )
+        def text(x: int, y: int, value: str, size: int = 11, bold: bool = False) -> str:
+            font = "F2" if bold else "F1"
+            return f"BT /{font} {size} Tf {x} {y} Td ({cls._escape_pdf_text(value)}) Tj ET"
 
-        lines.extend(
-            [
-                "",
-                f"Grand Total: Rs. {float(order.total_amount):.2f}",
-                "",
-                "Thank you for shopping with Lagads Nutrition.",
-            ]
-        )
+        def rect(x: int, y: int, w: int, h: int, rgb: tuple[float, float, float], fill: bool = True) -> str:
+            op = "f" if fill else "S"
+            return f"q {rgb[0]} {rgb[1]} {rgb[2]} rg {x} {y} {w} {h} re {op} Q"
 
-        content_lines = ["BT", "/F1 12 Tf", "50 790 Td"]
-        for index, line in enumerate(lines):
-            if index:
-                content_lines.append("0 -18 Td")
-            content_lines.append(f"({cls._escape_pdf_text(line)}) Tj")
-        content_lines.append("ET")
+        def line(x1: int, y1: int, x2: int, y2: int, width: float = 1.0) -> str:
+            return f"q {width} w {x1} {y1} m {x2} {y2} l S Q"
 
-        content = "\n".join(content_lines).encode("latin-1", "replace")
+        ops: list[str] = []
+        ops.append(rect(18, 20, 559, 802, (0.996, 0.996, 1.0), True))
+
+        ops.append(text(30, 792, "Lagad's Nutrition", 20, True))
+        ops.append(text(30, 770, "Phone no.: 8605554809", 11))
+        ops.append(text(30, 752, "Email: customercare@lagadsnutrition.in", 11))
+        ops.append(text(30, 734, "GSTIN: 26BKLPL8910L1ZL", 11))
+        ops.append(text(30, 716, "State: 26-Dadra & Nagar Haveli & Daman & Diu", 11))
+        ops.append(line(28, 704, 566, 704, 1))
+
+        ops.append(text(248, 676, "Tax Invoice", 24, True))
+
+        ops.append(text(30, 648, "Bill To", 13, True))
+        ops.append(text(30, 626, order.customer_name, 11, True))
+        ops.append(text(30, 606, f"Contact No.: {order.phone_number}", 11))
+        ops.append(text(30, 588, f"Email: {order.email}", 11))
+        ops.append(text(30, 570, f"Address: {order.delivery_address}", 11))
+
+        ops.append(text(470, 648, "Invoice Details", 13, True))
+        ops.append(text(460, 626, f"Invoice No.: {order.order_number}", 11))
+        ops.append(text(460, 606, f"Date: {invoice_date}", 11))
+
+        header_y = 544
+        ops.append(rect(28, header_y, 538, 28, (0.56, 0.53, 0.90), True))
+        ops.append(text(34, header_y + 9, "#", 11, True))
+        ops.append(text(58, header_y + 9, "Item Name", 11, True))
+        ops.append(text(214, header_y + 9, "HSN/SAC", 11, True))
+        ops.append(text(306, header_y + 9, "Quantity", 11, True))
+        ops.append(text(390, header_y + 9, "Unit", 11, True))
+        ops.append(text(444, header_y + 9, "Price/ Unit", 11, True))
+        ops.append(text(528, header_y + 9, "Amount", 11, True))
+
+        row_y = header_y - 24
+        for index, item in enumerate(order.items[:7], start=1):
+            ops.append(text(34, row_y, str(index), 11))
+            ops.append(text(58, row_y, item.product_name, 11, True))
+            ops.append(text(214, row_y, item.flavour[:18], 11))
+            ops.append(text(332, row_y, str(item.quantity), 11))
+            ops.append(text(392, row_y, "Pcs", 11))
+            ops.append(text(444, row_y, f"Rs. {float(item.unit_price):.2f}", 11))
+            ops.append(text(520, row_y, f"Rs. {float(item.line_total):.2f}", 11))
+            row_y -= 22
+
+        ops.append(line(28, row_y + 8, 566, row_y + 8))
+        ops.append(text(58, row_y - 16, "Total", 12, True))
+        ops.append(text(332, row_y - 16, str(total_quantity), 12, True))
+        ops.append(text(514, row_y - 16, f"Rs {total_amount:.2f}", 12, True))
+        ops.append(line(28, row_y - 26, 566, row_y - 26))
+
+        left_block_y = row_y - 70
+        ops.append(text(30, left_block_y, "Invoice Amount In Words", 13, True))
+        ops.append(text(30, left_block_y - 24, f"Rupees {int(round(total_amount))} only", 11))
+        ops.append(text(30, left_block_y - 56, "Terms And Conditions", 13, True))
+        ops.append(text(30, left_block_y - 80, "Thank you for doing business with us.", 11))
+
+        summary_y = row_y - 56
+        ops.append(text(305, summary_y, "Sub Total", 11))
+        ops.append(text(520, summary_y, f"Rs {total_amount:.2f}", 11))
+        ops.append(rect(302, summary_y - 24, 264, 24, (0.56, 0.53, 0.90), True))
+        ops.append(text(308, summary_y - 8, "Total", 12, True))
+        ops.append(text(512, summary_y - 8, f"Rs {total_amount:.2f}", 12, True))
+        ops.append(text(305, summary_y - 44, "Received", 11))
+        ops.append(text(538, summary_y - 44, "Rs 0.00", 11))
+        ops.append(text(305, summary_y - 68, "Balance", 11))
+        ops.append(text(520, summary_y - 68, f"Rs {total_amount:.2f}", 11))
+        ops.append(line(302, summary_y - 76, 566, summary_y - 76))
+
+        ops.append(text(385, summary_y - 126, "For: Lagad's Nutrition", 11))
+        ops.append(text(385, summary_y - 258, "Authorized Signatory", 11, True))
+
+        content = "\n".join(ops).encode("latin-1", "replace")
         objects = [
             b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
             b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
             (
                 b"3 0 obj\n"
                 b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-                b"/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\n"
+                b"/Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>\n"
                 b"endobj\n"
             ),
             b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
@@ -408,6 +460,7 @@ class OrderService:
                 + content
                 + b"\nendstream\nendobj\n"
             ),
+            b"6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n",
         ]
 
         pdf = bytearray(b"%PDF-1.4\n")

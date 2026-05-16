@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { fetchCurrentUser } from "../services/auth";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import { createPaymentOrder, notifyPaymentFailure, previewCoupon, verifyPayment } from "../services/payments";
@@ -13,43 +12,6 @@ const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? "";
 
 function getSessionToken(): string {
   return localStorage.getItem("lagads-user-token") || localStorage.getItem("lagads-admin-token") || "";
-}
-
-function getAllSessionTokens(): string[] {
-  const candidates = [
-    localStorage.getItem("lagads-user-token") || "",
-    localStorage.getItem("lagads-admin-token") || ""
-  ].filter(Boolean);
-  return Array.from(new Set(candidates));
-}
-
-function isAuthErrorMessage(message: string): boolean {
-  const text = message.toLowerCase();
-  return (
-    text.includes("invalid token") ||
-    text.includes("missing bearer token") ||
-    text.includes("user not found") ||
-    text.includes("authentication failed") ||
-    text.includes("unauthorized")
-  );
-}
-
-async function resolveValidSessionToken(): Promise<string> {
-  const candidates = [
-    { key: "lagads-user-token" as const, value: localStorage.getItem("lagads-user-token") || "" },
-    { key: "lagads-admin-token" as const, value: localStorage.getItem("lagads-admin-token") || "" }
-  ].filter((entry) => Boolean(entry.value));
-
-  for (const entry of candidates) {
-    try {
-      await fetchCurrentUser(entry.value);
-      return entry.value;
-    } catch {
-      localStorage.removeItem(entry.key);
-    }
-  }
-
-  return "";
 }
 
 const initialFormState = {
@@ -80,18 +42,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const paymentFlowLock = useRef(false);
   const [couponDiscountPercent, setCouponDiscountPercent] = useState(0);
   const [couponStatus, setCouponStatus] = useState("");
-
-  useEffect(() => {
-    if (!user) {
-      return;
-    }
-
-    setForm((current) => ({
-      ...current,
-      customerName: current.customerName || user.fullName,
-      email: current.email || user.email
-    }));
-  }, [user]);
 
   const enrichedCart = useMemo(
     () =>
@@ -125,10 +75,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   };
 
   const validateCheckout = () => {
-    const token = getSessionToken();
-    if (!user || !token) {
-      return "Please log in before placing an order or making payment.";
-    }
     if (!razorpayKeyId) {
       return "Razorpay public key is not configured.";
     }
@@ -187,40 +133,8 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         }))
       };
 
-      let paymentOrder: Awaited<ReturnType<typeof createPaymentOrder>> | null = null;
-      let activeToken = token;
-      let tokensToTry = getAllSessionTokens();
-      let lastError: Error | null = null;
-      for (const candidateToken of tokensToTry) {
-        try {
-          paymentOrder = await createPaymentOrder(payload, candidateToken);
-          activeToken = candidateToken;
-          break;
-        } catch (error) {
-          lastError = error instanceof Error ? error : new Error("Unable to start payment.");
-          if (!isAuthErrorMessage(lastError.message)) {
-            throw lastError;
-          }
-        }
-      }
-      if (!paymentOrder && lastError && isAuthErrorMessage(lastError.message)) {
-        const refreshedToken = await resolveValidSessionToken();
-        if (refreshedToken) {
-          tokensToTry = [refreshedToken];
-          for (const candidateToken of tokensToTry) {
-            try {
-              paymentOrder = await createPaymentOrder(payload, candidateToken);
-              activeToken = candidateToken;
-              break;
-            } catch (error) {
-              lastError = error instanceof Error ? error : new Error("Unable to start payment.");
-            }
-          }
-        }
-      }
-      if (!paymentOrder) {
-        throw lastError ?? new Error("Unable to start payment.");
-      }
+      const activeToken = token || undefined;
+      const paymentOrder = await createPaymentOrder(payload, activeToken);
 
       const razorpay = new RazorpayCheckout({
         key: razorpayKeyId,
@@ -323,14 +237,8 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       setCouponStatus("Coupon must be exactly 6 letters or numbers.");
       return;
     }
-    if (!token) {
-      setCouponDiscountPercent(0);
-      setCouponStatus("Login first to validate coupon.");
-      return;
-    }
-
     let cancelled = false;
-    void previewCoupon(couponCode, token)
+    void previewCoupon(couponCode, token || undefined)
       .then((result) => {
         if (cancelled) return;
         setCouponDiscountPercent(result.discount_percent);
@@ -356,11 +264,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     <section className="checkout-shell" id="checkout">
       <div>
         <p className="eyebrow">Checkout workflow</p>
-        <h2>Login before payment, then confirm delivery details</h2>
+        <h2>Confirm delivery details and continue to payment</h2>
         <p>
-          Users add products to cart first, then log in or register, fill delivery details,
-          review comments and continue to the payment gateway. Both the buyer and admin receive
-          a confirmation email after successful payment.
+          Users can complete checkout with card/UPI/netbanking. Logged-in users also get
+          order history in their account. Both buyer and admin receive emails after successful payment.
         </p>
       </div>
 

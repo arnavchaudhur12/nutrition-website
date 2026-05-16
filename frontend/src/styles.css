@@ -397,6 +397,16 @@ main {
   background: #fffdf9;
 }
 
+.password-field {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.password-field input {
+  flex: 1;
+}
+
 .price-row,
 .checkout-row,
 .cart-total {

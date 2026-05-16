@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import Depends, Header, HTTPException, status
 from jose import JWTError, jwt
 from sqlalchemy import select
@@ -28,6 +30,25 @@ def get_current_user(
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found.")
     return user
+
+
+def get_current_user_optional(
+    authorization: str = Header(default=""),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    if not authorization.startswith("Bearer "):
+        return None
+    token = authorization.replace("Bearer ", "", 1)
+    settings = get_settings()
+    try:
+        payload = jwt.decode(token, settings.secret_key, algorithms=[settings.algorithm])
+    except JWTError:
+        return None
+
+    email = payload.get("sub")
+    if not email:
+        return None
+    return db.execute(select(User).where(User.email == email)).scalar_one_or_none()
 
 
 def get_current_admin(user: User = Depends(get_current_user)) -> User:

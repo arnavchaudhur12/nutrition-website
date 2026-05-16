@@ -61,11 +61,11 @@ type HeroFormState = {
 
 const emptyProductForm = (): ProductFormState => ({
   slug: "",
-  name: "Peanut Butter",
+  name: "",
   flavour: "",
   description: "",
   image_urls: ["", "", "", "", ""],
-  category: "Peanut Butter",
+  category: "",
   variants: [
     { weight_label: "1kg", mrp: "", selling_price: "", stock_quantity: "100" },
     { weight_label: "500g", mrp: "", selling_price: "", stock_quantity: "100" }
@@ -76,8 +76,8 @@ const emptyHeroForm = (): HeroFormState => ({
   eyebrow_text: "",
   headline: "",
   body_text: "",
-  cta_label: "Shop Now",
-  cta_link: "#products",
+  cta_label: "",
+  cta_link: "",
   offer_text: "",
   badge_title: "",
   badge_subtitle: "",
@@ -166,13 +166,16 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   const [registerName, setRegisterName] = useState("");
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
+  const [showRegisterPassword, setShowRegisterPassword] = useState(false);
   const [registerPhone, setRegisterPhone] = useState("");
   const [resetEmail, setResetEmail] = useState("");
   const [resetPasswordValue, setResetPasswordValue] = useState("");
+  const [showResetPassword, setShowResetPassword] = useState(false);
 
   const resetFeedback = () => {
     setMessage("");
@@ -634,11 +637,20 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           </div>
           <div className="field">
             <span>Password</span>
-            <input
-              type="password"
-              value={loginPassword}
-              onChange={(event) => setLoginPassword(event.target.value)}
-            />
+            <div className="password-field">
+              <input
+                type={showLoginPassword ? "text" : "password"}
+                value={loginPassword}
+                onChange={(event) => setLoginPassword(event.target.value)}
+              />
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setShowLoginPassword((current) => !current)}
+              >
+                {showLoginPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
           <button className="pill pill-primary" onClick={handleLogin} disabled={loading}>
             {loading ? "Please wait..." : "Login"}
@@ -660,11 +672,20 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           </div>
           <div className="field">
             <span>New Password</span>
-            <input
-              type="password"
-              value={resetPasswordValue}
-              onChange={(event) => setResetPasswordValue(event.target.value)}
-            />
+            <div className="password-field">
+              <input
+                type={showResetPassword ? "text" : "password"}
+                value={resetPasswordValue}
+                onChange={(event) => setResetPasswordValue(event.target.value)}
+              />
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setShowResetPassword((current) => !current)}
+              >
+                {showResetPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
           <button className="pill pill-primary" onClick={handleResetPassword} disabled={loading}>
             {loading ? "Please wait..." : "Reset Password"}
@@ -693,11 +714,20 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           </div>
           <div className="field">
             <span>Password</span>
-            <input
-              type="password"
-              value={registerPassword}
-              onChange={(event) => setRegisterPassword(event.target.value)}
-            />
+            <div className="password-field">
+              <input
+                type={showRegisterPassword ? "text" : "password"}
+                value={registerPassword}
+                onChange={(event) => setRegisterPassword(event.target.value)}
+              />
+              <button
+                type="button"
+                className="text-button"
+                onClick={() => setShowRegisterPassword((current) => !current)}
+              >
+                {showRegisterPassword ? "Hide" : "Show"}
+              </button>
+            </div>
           </div>
           <div className="field">
             <span>Phone Number</span>

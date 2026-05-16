@@ -54,7 +54,10 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(body?.detail ?? fallback);
 }
 
-function authHeaders(token: string): HeadersInit {
+function authHeaders(token?: string): HeadersInit {
+  if (!token) {
+    return { "Content-Type": "application/json" };
+  }
   return {
     "Content-Type": "application/json",
     Authorization: `Bearer ${token}`
@@ -63,7 +66,7 @@ function authHeaders(token: string): HeadersInit {
 
 export async function createPaymentOrder(
   payload: CreatePaymentOrderPayload,
-  token: string
+  token?: string
 ): Promise<PaymentOrder> {
   const response = await fetch(`${API_BASE_URL}/create-order`, {
     method: "POST",
@@ -80,7 +83,7 @@ export async function createPaymentOrder(
 
 export async function verifyPayment(
   payload: VerifyPaymentPayload,
-  token: string
+  token?: string
 ): Promise<VerifyPaymentResult> {
   const response = await fetch(`${API_BASE_URL}/verify-payment`, {
     method: "POST",
@@ -97,7 +100,7 @@ export async function verifyPayment(
 
 export async function notifyPaymentFailure(
   payload: PaymentFailurePayload,
-  token: string
+  token?: string
 ): Promise<VerifyPaymentResult> {
   const response = await fetch(`${API_BASE_URL}/payment-failed`, {
     method: "POST",
@@ -112,7 +115,7 @@ export async function notifyPaymentFailure(
   return (await response.json()) as VerifyPaymentResult;
 }
 
-export async function previewCoupon(code: string, token: string): Promise<CouponPreview> {
+export async function previewCoupon(code: string, token?: string): Promise<CouponPreview> {
   const response = await fetch(
     `${API_BASE_URL}/coupon-preview?code=${encodeURIComponent(code)}`,
     {

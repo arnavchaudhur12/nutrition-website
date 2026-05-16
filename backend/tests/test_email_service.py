@@ -66,5 +66,5 @@ def test_invoice_pdf_contains_order_details() -> None:
     assert maintype == "application"
     assert subtype == "pdf"
     assert content.startswith(b"%PDF-1.4")
-    assert b"Lagads Nutrition Invoice" in content
+    assert b"Tax Invoice" in content
     assert b"LN-TEST1234" in content
