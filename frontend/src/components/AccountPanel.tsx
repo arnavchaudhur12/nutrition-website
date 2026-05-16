@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { buildAuthUser, useAuth } from "../context/AuthContext";
-import { fetchCurrentUser, login, register } from "../services/auth";
+import { fetchCurrentUser, login, register, resetPassword } from "../services/auth";
 import {
   createAdminCoupon,
   createAdminProduct,
@@ -30,7 +30,7 @@ type AccountPanelProps = {
   onHeroChange?: () => Promise<void> | void;
 };
 
-type View = "menu" | "login" | "register" | "admin" | "orders";
+type View = "menu" | "login" | "register" | "reset" | "admin" | "orders";
 
 type ProductFormState = {
   slug: string;
@@ -171,6 +171,8 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [registerEmail, setRegisterEmail] = useState("");
   const [registerPassword, setRegisterPassword] = useState("");
   const [registerPhone, setRegisterPhone] = useState("");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetPasswordValue, setResetPasswordValue] = useState("");
 
   const resetFeedback = () => {
     setMessage("");
@@ -240,6 +242,23 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       setMessage("Registration successful. You are now logged in.");
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : "Registration failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResetPassword = async () => {
+    resetFeedback();
+    setLoading(true);
+    try {
+      await resetPassword({
+        email: resetEmail,
+        new_password: resetPasswordValue
+      });
+      setMessage("Password reset successful. Please login with your new password.");
+      setView("login");
+    } catch (authError) {
+      setError(authError instanceof Error ? authError.message : "Password reset failed.");
     } finally {
       setLoading(false);
     }
@@ -623,6 +642,32 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           </div>
           <button className="pill pill-primary" onClick={handleLogin} disabled={loading}>
             {loading ? "Please wait..." : "Login"}
+          </button>
+          <button className="text-button" onClick={() => goToView("reset")}>
+            Forgot Password?
+          </button>
+        </div>
+      ) : null}
+
+      {view === "reset" ? (
+        <div className="auth-shell">
+          <button className="text-button" onClick={() => goToView("login")}>
+            Back to Login
+          </button>
+          <div className="field">
+            <span>Email</span>
+            <input value={resetEmail} onChange={(event) => setResetEmail(event.target.value)} />
+          </div>
+          <div className="field">
+            <span>New Password</span>
+            <input
+              type="password"
+              value={resetPasswordValue}
+              onChange={(event) => setResetPasswordValue(event.target.value)}
+            />
+          </div>
+          <button className="pill pill-primary" onClick={handleResetPassword} disabled={loading}>
+            {loading ? "Please wait..." : "Reset Password"}
           </button>
         </div>
       ) : null}

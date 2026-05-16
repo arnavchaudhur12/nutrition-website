@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token, get_password_hash, verify_password
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterRequest
+from app.schemas.auth import LoginRequest, RegisterRequest, ResetPasswordRequest
 
 
 class AuthService:
@@ -33,3 +33,15 @@ class AuthService:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials.")
         return create_access_token(subject=user.email)
 
+    def reset_password(self, payload: ResetPasswordRequest) -> None:
+        user = self.db.execute(select(User).where(User.email == payload.email)).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found.")
+        if len(payload.new_password.strip()) < 8:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password must be at least 8 characters.",
+            )
+        user.hashed_password = get_password_hash(payload.new_password.strip())
+        self.db.add(user)
+        self.db.commit()

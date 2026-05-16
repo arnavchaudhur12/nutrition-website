@@ -29,21 +29,10 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
   return (
     <section className="hero">
       <img src={imageUrl} alt={hero.headline} className="hero-background-image" />
-      <div className="hero-copy">
-        <p className="eyebrow">{hero.eyebrow_text}</p>
-        <h2>{hero.headline}</h2>
-        <p>{hero.body_text}</p>
-        <div className="hero-actions">
-          <a className="pill pill-primary" href="#products">
-            {hero.cta_label}
-          </a>
-          <span className="hero-offer">{hero.offer_text}</span>
-        </div>
-      </div>
-
-      <div className="hero-card">
-        <span>{hero.badge_title}</span>
-        <strong>{hero.badge_subtitle}</strong>
+      <div className="hero-actions hero-actions-fixed">
+        <a className="pill pill-primary" href="#products">
+          Shop Now
+        </a>
       </div>
     </section>
   );

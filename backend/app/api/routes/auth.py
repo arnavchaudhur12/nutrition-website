@@ -4,7 +4,13 @@ from sqlalchemy.orm import Session
 from app.api.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.schemas.auth import CurrentUserResponse, LoginRequest, RegisterRequest, TokenResponse
+from app.schemas.auth import (
+    CurrentUserResponse,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+)
 from app.services.auth_service import AuthService
 
 router = APIRouter()
@@ -20,6 +26,12 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenRe
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     token = AuthService(db).login(payload)
     return TokenResponse(access_token=token)
+
+
+@router.post("/reset-password")
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> dict[str, str]:
+    AuthService(db).reset_password(payload)
+    return {"message": "Password reset successful."}
 
 
 @router.get("/me", response_model=CurrentUserResponse)

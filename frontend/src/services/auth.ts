@@ -12,6 +12,11 @@ type RegisterPayload = {
   phone_number?: string;
 };
 
+type ResetPasswordPayload = {
+  email: string;
+  new_password: string;
+};
+
 type TokenResponse = {
   access_token: string;
   token_type: string;
@@ -72,3 +77,17 @@ export async function fetchCurrentUser(token: string): Promise<CurrentUserRespon
   return (await response.json()) as CurrentUserResponse;
 }
 
+export async function resetPassword(payload: ResetPasswordPayload): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify(payload)
+  });
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? "Unable to reset password.");
+  }
+}

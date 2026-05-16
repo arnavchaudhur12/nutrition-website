@@ -5,7 +5,13 @@ type SideDrawerProps = {
   onClose: () => void;
 };
 
-const menuItems = ["Peanut Butter", "About Us", "Customer Feedback", "Newsletter", "Terms Conditions"];
+const menuItems: Array<{ label: string; href: string }> = [
+  { label: "Peanut Butter", href: "#products" },
+  { label: "About Us", href: "#about-us" },
+  { label: "Customer Feedback", href: "#customer-feedback" },
+  { label: "Newsletter", href: "#newsletter" },
+  { label: "Terms & Conditions", href: "#terms-conditions" }
+];
 
 export function SideDrawer({ open, onClose }: SideDrawerProps) {
   return (
@@ -18,8 +24,8 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
       </div>
       <nav className="drawer-nav">
         {menuItems.map((item) => (
-          <a key={item} href={`#${item.toLowerCase().replace(/\s+/g, "-")}`} onClick={onClose}>
-            {item}
+          <a key={item.label} href={item.href} onClick={onClose}>
+            {item.label}
           </a>
         ))}
       </nav>
