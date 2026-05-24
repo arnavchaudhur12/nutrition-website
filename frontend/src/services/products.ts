@@ -4,6 +4,35 @@ import type { AdminProduct } from "../types/admin";
 import type { Product } from "../types";
 
 const accentPalette = ["#ff7a00", "#f0a04b", "#0f8b8d", "#7d5a50", "#ef8354"];
+const darkChocolateImages = [
+  new URL("../../../all_images/peanut_butter/product_1/1C.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_1/2C.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_1/3C.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_1/4C.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_1/5C.jpg", import.meta.url).href
+];
+const mawaMalaiImages = [
+  new URL("../../../all_images/peanut_butter/product_2/1M.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_2/2M.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_2/3M.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_2/4M.jpg", import.meta.url).href,
+  new URL("../../../all_images/peanut_butter/product_2/5M.jpg", import.meta.url).href
+];
+
+function getBundledProductImages(product: AdminProduct): string[] {
+  const slug = product.slug.trim().toLowerCase();
+  const flavour = product.flavour.trim().toLowerCase();
+
+  if (slug === "dark-chocolate-crispy" || flavour === "dark chocolate crispy") {
+    return darkChocolateImages;
+  }
+
+  if (slug === "mawa-malai-creamy" || flavour === "mawa malai creamy") {
+    return mawaMalaiImages;
+  }
+
+  return [];
+}
 
 function resolveImageUrl(imageUrl?: string | null): string {
   if (!imageUrl) {
@@ -35,11 +64,15 @@ function toHighlights(product: AdminProduct): string[] {
 }
 
 function mapAdminProductToStorefront(product: AdminProduct, index: number): Product {
-  const images = product.images.length
+  const uploadedImages = product.images.length
     ? product.images
         .sort((left, right) => left.sort_order - right.sort_order)
         .map((image) => resolveImageUrl(image.image_url))
-    : [resolveImageUrl(product.image_url)];
+    : product.image_url
+      ? [resolveImageUrl(product.image_url)]
+      : [];
+  const bundledImages = getBundledProductImages(product);
+  const images = bundledImages.length > 0 ? bundledImages : uploadedImages.length > 0 ? uploadedImages : [logo];
 
   return {
     id: product.slug,

@@ -166,6 +166,14 @@ main {
   position: relative;
   min-height: 540px;
   padding-bottom: 6.5rem;
+  background: linear-gradient(180deg, #f7d79b 0%, #f3bc69 100%);
+}
+
+.hero-background-picture {
+  position: absolute;
+  inset: 0;
+  display: block;
+  z-index: 0;
 }
 
 .hero::before {
@@ -316,49 +324,63 @@ main {
 }
 
 .product-visual {
-  display: flex;
+  display: grid;
   position: relative;
   align-items: center;
   justify-content: center;
   min-height: 420px;
-  padding: 1rem 0;
+  gap: 1rem;
+  padding: 1.25rem 0 1rem;
+  overflow: hidden;
+  touch-action: pan-y;
 }
 
 .product-visual img {
   width: 100%;
-  max-width: 320px;
-  max-height: 420px;
+  max-width: min(100%, 360px);
+  max-height: 440px;
   object-fit: contain;
 }
 
-.carousel-arrow {
-  position: absolute;
-  top: 50%;
-  right: 0.5rem;
-  transform: translateY(-50%);
-  width: 48px;
-  height: 48px;
-  border: 0;
-  border-radius: 999px;
-  background: rgba(15, 62, 65, 0.92);
-  color: white;
-  font-size: 2rem;
-  line-height: 1;
-  cursor: pointer;
-  box-shadow: 0 12px 24px rgba(15, 62, 65, 0.2);
+.product-gallery-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.55rem;
+  padding: 0 1rem;
 }
 
-.product-carousel-arrow {
-  right: 1rem;
+.gallery-dot {
+  width: 11px;
+  height: 11px;
+  border: 0;
+  border-radius: 999px;
+  background: rgba(15, 62, 65, 0.2);
+  cursor: pointer;
+  transition: transform 160ms ease, background 160ms ease;
+}
+
+.gallery-dot.active {
+  background: var(--brand);
+  transform: scale(1.15);
 }
 
 .product-body {
   padding: 1.75rem;
 }
 
-.product-description {
-  color: var(--muted);
-  line-height: 1.7;
+.product-description-trigger {
+  border: 0;
+  background: transparent;
+  color: var(--brand-dark);
+  font-weight: 800;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.product-description-modal {
+  width: min(680px, 100%);
 }
 
 .chip-row {
@@ -423,13 +445,38 @@ main {
 }
 
 .quantity-stepper {
-  display: flex;
+  display: grid;
   gap: 0.65rem;
-  align-items: center;
+  justify-items: end;
 }
 
-.quantity-stepper input {
-  width: 88px;
+.quantity-stepper-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #fff8ef;
+}
+
+.quantity-stepper-button {
+  width: 2.35rem;
+  height: 2.35rem;
+  border: 0;
+  border-radius: 999px;
+  background: white;
+  color: var(--ink);
+  font-size: 1.35rem;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(15, 62, 65, 0.1);
+}
+
+.quantity-stepper-value {
+  min-width: 2ch;
+  text-align: center;
+  font-weight: 800;
 }
 
 .checkout-row {
@@ -919,9 +966,15 @@ main {
   }
 
   .hero {
-    min-height: 480px;
-    padding: 1.75rem;
-    padding-bottom: 6rem;
+    min-height: auto;
+    aspect-ratio: 1024 / 1306;
+    padding: 1rem;
+    padding-bottom: 5.75rem;
+  }
+
+  .hero-background-image {
+    object-fit: contain;
+    object-position: center;
   }
 
   .hero-copy {
@@ -945,10 +998,9 @@ main {
 
   .quantity-stepper {
     width: 100%;
-    justify-content: space-between;
+    justify-items: start;
   }
 
-  .quantity-stepper input,
   .pill,
   .checkout-row .pill {
     width: 100%;
@@ -994,8 +1046,9 @@ main {
   }
 
   .hero {
-    min-height: 420px;
-    align-items: start;
+    min-height: auto;
+    aspect-ratio: 1024 / 1306;
+    align-items: stretch;
     padding-bottom: 5.75rem;
   }
 
@@ -1019,24 +1072,15 @@ main {
   }
 
   .product-visual {
-    min-height: 280px;
-    padding: 1rem;
+    min-height: 340px;
+    padding: 1rem 1rem 0.85rem;
   }
 
   .product-visual img {
-    max-width: 220px;
-    max-height: 280px;
+    max-width: min(100%, 300px);
+    max-height: 360px;
   }
 
-  .product-carousel-arrow,
-  .carousel-arrow {
-    width: 40px;
-    height: 40px;
-    right: 0.6rem;
-    font-size: 1.6rem;
-  }
-
-  .product-description,
   .terms-intro p:last-child,
   .terms-card p {
     line-height: 1.6;
@@ -1076,8 +1120,8 @@ main {
   }
 
   .brand-logo {
-    width: 84px;
-    height: 84px;
+    width: 72px;
+    height: 72px;
   }
 
   .eyebrow {
@@ -1114,8 +1158,14 @@ main {
   }
 
   .hero {
-    min-height: 380px;
+    min-height: auto;
+    aspect-ratio: 1024 / 1306;
     padding-bottom: 5.5rem;
+  }
+
+  .gallery-dot {
+    width: 10px;
+    height: 10px;
   }
 
   .hero-copy h2 {

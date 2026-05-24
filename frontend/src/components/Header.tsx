@@ -23,9 +23,9 @@ export function Header({
       </button>
 
       <div className="brand-lockup">
-        <img src={logo} alt="Lagads Nutrition logo" className="brand-logo" />
+        <img src={logo} alt="Lagad’s Nutrition logo" className="brand-logo" />
         <div>
-          <h1>Lagads Nutrition</h1>
+          <h1>Lagad’s Nutrition</h1>
         </div>
       </div>
 
