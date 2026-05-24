@@ -95,13 +95,9 @@ export default function App() {
         <section className="section-heading" id="products">
           <div>
             <p className="eyebrow">Peanut Butter</p>
-            <h2>Slide into the catalog, choose flavour, and price updates dynamically</h2>
+            <h2>Flavour You’ll Crave Again & Again</h2>
           </div>
-          <p>
-            This first version keeps the product catalog focused and premium while already
-            preparing the data model for future product expansion, admin management, and
-            analytics.
-          </p>
+          <p>Smooth texture, rich taste, and nutrition that fits your lifestyle.</p>
         </section>
 
         <section className="product-grid">

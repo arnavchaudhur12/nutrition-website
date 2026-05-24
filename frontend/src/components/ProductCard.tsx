@@ -9,6 +9,7 @@ export function ProductCard({ product }: { product: Product }) {
   const [quantity, setQuantity] = useState(1);
   const [imageIndex, setImageIndex] = useState(0);
   const [descriptionOpen, setDescriptionOpen] = useState(false);
+  const [imagePreviewOpen, setImagePreviewOpen] = useState(false);
   const touchStartX = useRef<number | null>(null);
 
   const variant = product.variants.find((item) => item.id === variantId) ?? product.variants[0];
@@ -47,7 +48,14 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <article className="product-card" id={product.id}>
       <div className="product-visual" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
-        <img src={visibleImage} alt={product.flavour} />
+        <button
+          type="button"
+          className="product-image-trigger"
+          onClick={() => setImagePreviewOpen(true)}
+          aria-label={`Open larger image for ${product.flavour}`}
+        >
+          <img src={visibleImage} alt={product.flavour} />
+        </button>
         {hasMultipleImages ? (
           <div className="product-gallery-dots" aria-label={`${product.flavour} image gallery`}>
             {product.images.map((image, currentImageIndex) => (
@@ -163,6 +171,33 @@ export function ProductCard({ product }: { product: Product }) {
             </div>
             <div className="terms-modal-content">
               <p>{product.description}</p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {imagePreviewOpen ? (
+        <div
+          className="terms-modal-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${product.flavour} image preview`}
+          onClick={() => setImagePreviewOpen(false)}
+        >
+          <div className="terms-modal-card product-image-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="terms-modal-header">
+              <h3>{product.flavour}</h3>
+              <button
+                type="button"
+                className="icon-button"
+                onClick={() => setImagePreviewOpen(false)}
+                aria-label={`Close image preview for ${product.flavour}`}
+              >
+                x
+              </button>
+            </div>
+            <div className="product-image-modal-body">
+              <img src={visibleImage} alt={product.flavour} className="product-image-modal-preview" />
             </div>
           </div>
         </div>
