@@ -1,8 +1,6 @@
 .DS_Store
 node_modules
 dist
-.vite
-.venv
 __pycache__
 .pytest_cache
 .mypy_cache
@@ -13,3 +11,7 @@ backend/uploads
 backend/lagads_nutrition.db
 frontend/*.tsbuildinfo
 alembic.ini
+backend/.venv
+frontend/node_modules
+.venv
+vite.config.ts
