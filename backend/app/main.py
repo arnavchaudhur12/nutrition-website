@@ -2,12 +2,25 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import admin, auth, feedback, health, hero, metrics, newsletter, orders, payments, products
+from app.api.routes import (
+    admin,
+    auth,
+    feedback,
+    health,
+    hero,
+    metrics,
+    newsletter,
+    orders,
+    payments,
+    products,
+    visitors,
+)
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.seed import seed_defaults
 from app.db.session import SessionLocal, engine
+from app.services.visitor_service import VisitorPresenceService
 
 settings = get_settings()
 configure_logging()
@@ -21,6 +34,7 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
+app.state.visitor_presence_service = VisitorPresenceService()
 
 app.add_middleware(
     CORSMiddleware,
@@ -37,6 +51,7 @@ app.include_router(products.router, prefix="/api/products", tags=["products"])
 app.include_router(orders.router, prefix="/api/orders", tags=["orders"])
 app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 app.include_router(newsletter.router, prefix="/api/newsletter", tags=["newsletter"])
+app.include_router(visitors.router, prefix="/api/visitors", tags=["visitors"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(metrics.router, prefix="/api/admin/metrics", tags=["metrics"])
 app.include_router(payments.router, prefix="/api", tags=["payments"])
