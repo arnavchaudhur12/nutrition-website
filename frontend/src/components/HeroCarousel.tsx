@@ -5,7 +5,7 @@ const desktopHeroImage = new URL(
   import.meta.url
 ).href;
 const mobileHeroImage = new URL(
-  "../../../all_images/global_images/mobile_font/IMG_0285.PNG",
+  "../../../all_images/global_images/mobile_font/IMG_0608.PNG",
   import.meta.url
 ).href;
 
