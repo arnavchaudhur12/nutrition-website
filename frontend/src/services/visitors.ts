@@ -1,12 +1,7 @@
 import { API_BASE_URL } from "../config/api";
 
-type VisitorSessionResponse = {
-  session_id: string;
-  active_visitors: number;
-};
-
 type VisitorCountResponse = {
-  active_visitors: number;
+  total_visitors: number;
 };
 
 async function parseError(response: Response, fallback: string): Promise<Error> {
@@ -14,35 +9,7 @@ async function parseError(response: Response, fallback: string): Promise<Error> 
   return new Error(body?.detail ?? fallback);
 }
 
-export async function connectVisitor(): Promise<VisitorSessionResponse> {
-  const response = await fetch(`${API_BASE_URL}/visitors/connect`, {
-    method: "POST"
-  });
-
-  if (!response.ok) {
-    throw await parseError(response, "Unable to start visitor tracking.");
-  }
-
-  return (await response.json()) as VisitorSessionResponse;
-}
-
-export async function sendVisitorHeartbeat(sessionId: string): Promise<VisitorSessionResponse> {
-  const response = await fetch(`${API_BASE_URL}/visitors/heartbeat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ session_id: sessionId })
-  });
-
-  if (!response.ok) {
-    throw await parseError(response, "Unable to refresh visitor count.");
-  }
-
-  return (await response.json()) as VisitorSessionResponse;
-}
-
-export async function fetchActiveVisitors(): Promise<VisitorCountResponse> {
+export async function fetchTotalVisitors(): Promise<VisitorCountResponse> {
   const response = await fetch(`${API_BASE_URL}/visitors`);
 
   if (!response.ok) {
@@ -52,13 +19,14 @@ export async function fetchActiveVisitors(): Promise<VisitorCountResponse> {
   return (await response.json()) as VisitorCountResponse;
 }
 
-export async function disconnectVisitor(sessionId: string): Promise<void> {
-  await fetch(`${API_BASE_URL}/visitors/disconnect`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ session_id: sessionId }),
-    keepalive: true
-  }).catch(() => undefined);
+export async function trackVisitor(): Promise<VisitorCountResponse> {
+  const response = await fetch(`${API_BASE_URL}/visitors/track`, {
+    method: "POST"
+  });
+
+  if (!response.ok) {
+    throw await parseError(response, "Unable to track visitor count.");
+  }
+
+  return (await response.json()) as VisitorCountResponse;
 }

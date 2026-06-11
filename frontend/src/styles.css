@@ -35,7 +35,6 @@ select {
 
 .app-shell {
   min-height: 100vh;
-  padding-bottom: 5.5rem;
 }
 
 .topbar {
@@ -153,38 +152,6 @@ select {
 
 main {
   padding: 1.5rem;
-}
-
-.visitor-counter {
-  position: fixed;
-  left: 50%;
-  bottom: 1rem;
-  transform: translateX(-50%);
-  z-index: 25;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.85rem;
-  padding: 0.9rem 1.2rem;
-  border: 1px solid rgba(15, 62, 65, 0.14);
-  border-radius: 999px;
-  background: rgba(15, 62, 65, 0.92);
-  color: #fffaf3;
-  box-shadow: 0 16px 40px rgba(15, 62, 65, 0.18);
-  backdrop-filter: blur(18px);
-}
-
-.visitor-counter__label {
-  font-size: 0.84rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  opacity: 0.82;
-}
-
-.visitor-counter__value {
-  min-width: 2ch;
-  font-family: "League Spartan", sans-serif;
-  font-size: 1.35rem;
-  line-height: 1;
 }
 
 .hero {
@@ -732,6 +699,32 @@ main {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 1rem;
+}
+
+.terms-visitor-counter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.15rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.terms-visitor-counter__label {
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.terms-visitor-counter__value {
+  font-family: "League Spartan", sans-serif;
+  font-size: clamp(1.35rem, 2.3vw, 1.8rem);
+  line-height: 1;
+  color: #ffffff;
 }
 
 .terms-card {

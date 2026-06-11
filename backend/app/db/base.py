@@ -13,3 +13,4 @@ import app.models.newsletter  # noqa: F401,E402
 import app.models.order  # noqa: F401,E402
 import app.models.product  # noqa: F401,E402
 import app.models.user  # noqa: F401,E402
+import app.models.visitor  # noqa: F401,E402

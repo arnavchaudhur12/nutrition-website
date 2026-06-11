@@ -1,48 +1,33 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
-from threading import Lock
-from uuid import uuid4
+from sqlalchemy.orm import Session
+
+from app.models.visitor import VisitorCounter
 
 
-@dataclass(slots=True)
-class VisitorPresenceService:
-    ttl_seconds: int = 45
-    _sessions: dict[str, datetime] = field(default_factory=dict)
-    _lock: Lock = field(default_factory=Lock)
+class VisitorService:
+    def __init__(self, db: Session):
+        self.db = db
 
-    def connect(self) -> dict[str, object]:
-        with self._lock:
-            self._prune_locked()
-            session_id = uuid4().hex
-            self._sessions[session_id] = self._expires_at()
-            return {"session_id": session_id, "active_visitors": len(self._sessions)}
+    def get_total_visitors(self) -> dict[str, int]:
+        counter = self._get_or_create_counter()
+        return {"total_visitors": counter.total_visitors}
 
-    def heartbeat(self, session_id: str) -> dict[str, object]:
-        with self._lock:
-            self._prune_locked()
-            self._sessions[session_id] = self._expires_at()
-            return {"session_id": session_id, "active_visitors": len(self._sessions)}
+    def track_visit(self) -> dict[str, int]:
+        counter = self._get_or_create_counter()
+        counter.total_visitors += 1
+        self.db.add(counter)
+        self.db.commit()
+        self.db.refresh(counter)
+        return {"total_visitors": counter.total_visitors}
 
-    def disconnect(self, session_id: str) -> dict[str, int]:
-        with self._lock:
-            self._sessions.pop(session_id, None)
-            self._prune_locked()
-            return {"active_visitors": len(self._sessions)}
+    def _get_or_create_counter(self) -> VisitorCounter:
+        counter = self.db.get(VisitorCounter, 1)
+        if counter:
+            return counter
 
-    def snapshot(self) -> dict[str, int]:
-        with self._lock:
-            self._prune_locked()
-            return {"active_visitors": len(self._sessions)}
-
-    def _prune_locked(self) -> None:
-        now = datetime.now(UTC)
-        expired_sessions = [
-            session_id for session_id, expires_at in self._sessions.items() if expires_at <= now
-        ]
-        for session_id in expired_sessions:
-            self._sessions.pop(session_id, None)
-
-    def _expires_at(self) -> datetime:
-        return datetime.now(UTC) + timedelta(seconds=self.ttl_seconds)
+        counter = VisitorCounter(id=1, total_visitors=0)
+        self.db.add(counter)
+        self.db.commit()
+        self.db.refresh(counter)
+        return counter

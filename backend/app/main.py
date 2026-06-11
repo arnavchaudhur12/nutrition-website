@@ -20,7 +20,6 @@ from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.seed import seed_defaults
 from app.db.session import SessionLocal, engine
-from app.services.visitor_service import VisitorPresenceService
 
 settings = get_settings()
 configure_logging()
@@ -34,7 +33,6 @@ app = FastAPI(
     docs_url="/docs",
     redoc_url="/redoc",
 )
-app.state.visitor_presence_service = VisitorPresenceService()
 
 app.add_middleware(
     CORSMiddleware,

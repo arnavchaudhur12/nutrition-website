@@ -1,5 +1,9 @@
 import { useState } from "react";
 
+type InfoSectionsProps = {
+  totalVisitors: number | null;
+};
+
 const termsSections = [
   {
     title: "1. General",
@@ -136,7 +140,7 @@ const termsSections = [
   }
 ];
 
-export function InfoSections() {
+export function InfoSections({ totalVisitors }: InfoSectionsProps) {
   const [openTermTitle, setOpenTermTitle] = useState<string | null>(null);
   const selectedTerm = termsSections.find((section) => section.title === openTermTitle) ?? null;
 
@@ -201,6 +205,12 @@ export function InfoSections() {
               </button>
             </article>
           ))}
+        </div>
+        <div className="terms-visitor-counter" aria-live="polite">
+          <span className="terms-visitor-counter__label">Overall visitors</span>
+          <strong className="terms-visitor-counter__value">
+            {totalVisitors === null ? "..." : totalVisitors.toLocaleString("en-IN")}
+          </strong>
         </div>
       </section>
 

@@ -1,34 +1,16 @@
-from fastapi import APIRouter, Request
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from app.services.visitor_service import VisitorPresenceService
+from app.db.session import get_db
+from app.services.visitor_service import VisitorService
 
 router = APIRouter()
 
-
-class VisitorHeartbeatPayload(BaseModel):
-    session_id: str
-
-
-def get_visitor_service(request: Request) -> VisitorPresenceService:
-    return request.app.state.visitor_presence_service
-
-
 @router.get("")
-def get_active_visitors(request: Request) -> dict[str, int]:
-    return get_visitor_service(request).snapshot()
+def get_total_visitors(db: Session = Depends(get_db)) -> dict[str, int]:
+    return VisitorService(db).get_total_visitors()
 
 
-@router.post("/connect")
-def connect_visitor(request: Request) -> dict[str, object]:
-    return get_visitor_service(request).connect()
-
-
-@router.post("/heartbeat")
-def heartbeat_visitor(payload: VisitorHeartbeatPayload, request: Request) -> dict[str, object]:
-    return get_visitor_service(request).heartbeat(payload.session_id)
-
-
-@router.post("/disconnect")
-def disconnect_visitor(payload: VisitorHeartbeatPayload, request: Request) -> dict[str, int]:
-    return get_visitor_service(request).disconnect(payload.session_id)
+@router.post("/track")
+def track_total_visitors(db: Session = Depends(get_db)) -> dict[str, int]:
+    return VisitorService(db).track_visit()

@@ -11,12 +11,7 @@ import { useAuth } from "./context/AuthContext";
 import { useCart } from "./context/CartContext";
 import { fetchHeroConfig } from "./services/hero";
 import { fetchStorefrontProducts } from "./services/products";
-import {
-  connectVisitor,
-  disconnectVisitor,
-  fetchActiveVisitors,
-  sendVisitorHeartbeat
-} from "./services/visitors";
+import { fetchTotalVisitors, trackVisitor } from "./services/visitors";
 import type { HeroConfig } from "./types/hero";
 import type { Product } from "./types";
 
@@ -28,7 +23,7 @@ export default function App() {
   const [hero, setHero] = useState<HeroConfig | null>(null);
   const [productsLoading, setProductsLoading] = useState(true);
   const [productsError, setProductsError] = useState("");
-  const [activeVisitors, setActiveVisitors] = useState<number | null>(null);
+  const [totalVisitors, setTotalVisitors] = useState<number | null>(null);
   const { itemCount } = useCart();
   const { user } = useAuth();
 
@@ -79,64 +74,32 @@ export default function App() {
 
   useEffect(() => {
     let isMounted = true;
-    let sessionId: string | null = null;
 
-    const startTracking = async () => {
+    const loadVisitors = async () => {
       try {
-        const snapshot = await fetchActiveVisitors();
-        if (isMounted) {
-          setActiveVisitors(snapshot.active_visitors);
+        const hasTrackedVisit =
+          window.sessionStorage.getItem("lagads-visitor-tracked") === "true";
+        const response = hasTrackedVisit ? await fetchTotalVisitors() : await trackVisitor();
+
+        if (!hasTrackedVisit) {
+          window.sessionStorage.setItem("lagads-visitor-tracked", "true");
         }
 
-        const session = await connectVisitor();
-        sessionId = session.session_id;
-
         if (isMounted) {
-          setActiveVisitors(session.active_visitors);
+          setTotalVisitors(response.total_visitors);
         }
       } catch (error) {
         if (isMounted) {
-          setActiveVisitors(null);
+          setTotalVisitors(null);
           console.error(error);
         }
       }
     };
 
-    void startTracking();
-
-    const heartbeatTimer = window.setInterval(() => {
-      if (!sessionId) {
-        return;
-      }
-
-      void sendVisitorHeartbeat(sessionId)
-        .then((session) => {
-          if (isMounted) {
-            setActiveVisitors(session.active_visitors);
-          }
-        })
-        .catch((error) => {
-          if (isMounted) {
-            console.error(error);
-          }
-        });
-    }, 15000);
-
-    const handlePageHide = () => {
-      if (sessionId) {
-        void disconnectVisitor(sessionId);
-      }
-    };
-
-    window.addEventListener("pagehide", handlePageHide);
+    void loadVisitors();
 
     return () => {
       isMounted = false;
-      window.clearInterval(heartbeatTimer);
-      window.removeEventListener("pagehide", handlePageHide);
-      if (sessionId) {
-        void disconnectVisitor(sessionId);
-      }
     };
   }, []);
 
@@ -184,15 +147,8 @@ export default function App() {
         </section>
 
         <CheckoutSection products={products} />
-        <InfoSections />
+        <InfoSections totalVisitors={totalVisitors} />
       </main>
-
-      <footer className="visitor-counter" aria-live="polite">
-        <span className="visitor-counter__label">Live visitors</span>
-        <strong className="visitor-counter__value">
-          {activeVisitors === null ? "..." : activeVisitors}
-        </strong>
-      </footer>
     </div>
   );
 }
