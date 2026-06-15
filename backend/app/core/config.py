@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
 
+    google_sheet_id: str = ""
+    google_sheet_worksheet: str = ""
+    google_service_account_file: str = ""
+
 
 @lru_cache
 def get_settings() -> Settings:

@@ -47,4 +47,4 @@ uvicorn app.main:app --reload
 - Payment gateway credentials are intentionally environment-driven and not committed.
 - Admin credentials should be seeded through environment variables and rotated before launch.
 - Production deployment for a FastAPI app with background email and payment callbacks is best hosted on a VPS rather than shared hosting.
-
+- Google Sheets sync can be run with `python backend/scripts/sync_orders_to_google_sheet.py` after setting `GOOGLE_SHEET_ID`, `GOOGLE_SHEET_WORKSHEET`, and `GOOGLE_SERVICE_ACCOUNT_FILE`.

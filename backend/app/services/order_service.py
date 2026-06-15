@@ -376,9 +376,9 @@ class OrderService:
             f"<tr>"
             f"<td style='vertical-align:top;padding-right:12px;'>"
             f"<h2 style='margin:0 0 8px;font-size:24px;color:#151515;'>Lagad's Nutrition</h2>"
-            f"<p style='margin:0 0 6px;'>Phone no.: {order.phone_number}</p>"
             f"<p style='margin:0 0 6px;'>Email: customercare@lagadsnutrition.in</p>"
-            f"<p style='margin:0;'>State: Dadra & Nagar Haveli & Daman & Diu</p>"
+            f"<p style='margin:0 0 6px;'>GSTIN: 26BKLPL8910L1ZL</p>"
+            f"<p style='margin:0;'>State: Maharashtra</p>"
             f"</td>"
             f"<td style='vertical-align:top;text-align:right;'>"
             f"<p style='margin:0 0 6px;'><strong>Invoice No:</strong> {order.order_number}</p>"
@@ -476,10 +476,9 @@ class OrderService:
         ops.append(rect(18, 20, 559, 802, (0.996, 0.996, 1.0), True))
 
         ops.append(text(30, 792, "Lagad's Nutrition", 20, True))
-        ops.append(text(30, 770, "Phone no.: 8605554809", 11))
-        ops.append(text(30, 752, "Email: customercare@lagadsnutrition.in", 11))
-        ops.append(text(30, 734, "GSTIN: 26BKLPL8910L1ZL", 11))
-        ops.append(text(30, 716, "State: 26-Dadra & Nagar Haveli & Daman & Diu", 11))
+        ops.append(text(30, 770, "Email: customercare@lagadsnutrition.in", 11))
+        ops.append(text(30, 752, "GSTIN: 26BKLPL8910L1ZL", 11))
+        ops.append(text(30, 734, "State: Maharashtra", 11))
         ops.append(line(28, 704, 566, 704, 1))
 
         ops.append(text(248, 676, "Tax Invoice", 24, True))
@@ -495,7 +494,8 @@ class OrderService:
         ops.append(text(460, 606, f"Date: {invoice_date}", 11))
 
         header_y = 544
-        ops.append(rect(28, header_y, 538, 28, (0.56, 0.53, 0.90), True))
+        ops.append(line(28, header_y + 28, 566, header_y + 28))
+        ops.append(line(28, header_y, 566, header_y))
         ops.append(text(34, header_y + 9, "#", 11, True))
         ops.append(text(58, header_y + 9, "Item Name", 11, True))
         ops.append(text(214, header_y + 9, "HSN/SAC", 11, True))
@@ -530,9 +530,9 @@ class OrderService:
         summary_y = row_y - 56
         ops.append(text(305, summary_y, "Sub Total", 11))
         ops.append(text(520, summary_y, f"Rs {total_amount:.2f}", 11))
-        ops.append(rect(302, summary_y - 24, 264, 24, (0.56, 0.53, 0.90), True))
-        ops.append(text(308, summary_y - 8, "Total", 12, True))
-        ops.append(text(512, summary_y - 8, f"Rs {total_amount:.2f}", 12, True))
+        ops.append(line(302, summary_y - 8, 566, summary_y - 8))
+        ops.append(text(308, summary_y - 24, "Total", 12, True))
+        ops.append(text(512, summary_y - 24, f"Rs {total_amount:.2f}", 12, True))
         ops.append(text(305, summary_y - 44, "Received", 11))
         ops.append(text(538, summary_y - 44, "Rs 0.00", 11))
         ops.append(text(305, summary_y - 68, "Balance", 11))
