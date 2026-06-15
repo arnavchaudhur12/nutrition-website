@@ -8,11 +8,13 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
   }
 
   const desktopImages = hero.images
-    .slice(0, 3)
+    .filter((image) => image.sort_order >= 0 && image.sort_order < 3)
+    .sort((left, right) => left.sort_order - right.sort_order)
     .map((image) => resolveHeroImageUrl(image.image_url))
     .filter((image): image is string => Boolean(image));
   const mobileImages = hero.images
-    .slice(3, 6)
+    .filter((image) => image.sort_order >= 3 && image.sort_order < 6)
+    .sort((left, right) => left.sort_order - right.sort_order)
     .map((image) => resolveHeroImageUrl(image.image_url))
     .filter((image): image is string => Boolean(image));
 
