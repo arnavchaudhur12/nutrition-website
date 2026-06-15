@@ -195,6 +195,10 @@ main {
   z-index: 0;
 }
 
+.hero-background-image-mobile {
+  display: none;
+}
+
 .hero-copy {
   position: relative;
   z-index: 2;
@@ -1181,6 +1185,14 @@ main {
   .hero-background-image {
     object-fit: contain;
     object-position: center;
+  }
+
+  .hero-background-image-desktop {
+    display: none;
+  }
+
+  .hero-background-image-mobile {
+    display: block;
   }
 
   .hero-copy {
