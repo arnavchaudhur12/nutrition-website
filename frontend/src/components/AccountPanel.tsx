@@ -1134,71 +1134,12 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
 
                 <section className="admin-section" id="admin-hero">
                   <div className="admin-section-header">
-                    <h3>Homepage Hero</h3>
-                    <span>Control the main banner text, badge copy, CTA, and up to 5 hero images.</span>
-                  </div>
-
-                  <div className="field">
-                    <span>Eyebrow Text</span>
-                    <input
-                      value={heroForm.eyebrow_text}
-                      onChange={(event) => handleHeroFieldChange("eyebrow_text", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Headline</span>
-                    <textarea
-                      rows={3}
-                      value={heroForm.headline}
-                      onChange={(event) => handleHeroFieldChange("headline", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Body Text</span>
-                    <textarea
-                      rows={5}
-                      value={heroForm.body_text}
-                      onChange={(event) => handleHeroFieldChange("body_text", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>CTA Label</span>
-                    <input
-                      value={heroForm.cta_label}
-                      onChange={(event) => handleHeroFieldChange("cta_label", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>CTA Link</span>
-                    <input
-                      value={heroForm.cta_link}
-                      onChange={(event) => handleHeroFieldChange("cta_link", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Offer Text</span>
-                    <input
-                      value={heroForm.offer_text}
-                      onChange={(event) => handleHeroFieldChange("offer_text", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Badge Title</span>
-                    <input
-                      value={heroForm.badge_title}
-                      onChange={(event) => handleHeroFieldChange("badge_title", event.target.value)}
-                    />
-                  </div>
-                  <div className="field">
-                    <span>Badge Subtitle</span>
-                    <input
-                      value={heroForm.badge_subtitle}
-                      onChange={(event) => handleHeroFieldChange("badge_subtitle", event.target.value)}
-                    />
+                    <h3>Website And Mobile Font Images</h3>
+                    <span>Manage slideshow images only.</span>
                   </div>
                   <div className="field">
                     <span>Hero Images</span>
-                    <p className="muted">Upload 3 website slideshow images and 3 mobile slideshow images. The live homepage rotates them every 2 seconds.</p>
+                    <p className="muted">Upload 3 website slideshow images and 3 mobile slideshow images. The live homepage rotates them every 3 seconds.</p>
                     <div className="admin-image-grid">
                       {heroForm.image_urls.map((imageUrl, index) => (
                         <div key={`hero-image-${index}`} className="admin-image-slot">

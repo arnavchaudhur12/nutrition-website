@@ -26,7 +26,7 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
     setCurrentSlide(0);
     const timer = window.setInterval(() => {
       setCurrentSlide((previous) => (previous + 1) % slideCount);
-    }, 2000);
+    }, 3000);
 
     return () => window.clearInterval(timer);
   }, [slideCount, hero.images]);
