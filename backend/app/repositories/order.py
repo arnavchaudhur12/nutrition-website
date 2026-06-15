@@ -39,6 +39,14 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    def get_by_order_number(self, order_number: str) -> Optional[Order]:
+        result = self.db.execute(
+            select(Order)
+            .where(Order.order_number == order_number)
+            .options(selectinload(Order.items))
+        )
+        return result.scalar_one_or_none()
+
     def aggregate_total_revenue(self) -> float:
         result = self.db.execute(select(func.coalesce(func.sum(Order.total_amount), 0)))
         return float(result.scalar_one())

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, Depends
+from typing import Any, Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy.orm import Session
-from typing import Optional
 
 from app.api.dependencies import get_current_user_optional
 from app.db.session import get_db
@@ -13,6 +14,7 @@ from app.schemas.order import (
     RazorpayVerifyRequest,
 )
 from app.services.order_service import OrderService
+from app.services.payment_service import PaymentService
 
 router = APIRouter()
 
@@ -53,3 +55,33 @@ def preview_coupon_discount(
     _ = current_user
     discount_percent = OrderService(db).coupon_service.get_discount_percent(code)
     return {"code": code.strip().upper(), "discount_percent": discount_percent}
+
+
+@router.post("/payments/webhook")
+async def handle_razorpay_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_razorpay_signature: str = Header(default="", alias="X-Razorpay-Signature"),
+) -> dict[str, object]:
+    if not x_razorpay_signature:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing Razorpay webhook signature.",
+        )
+
+    body = await request.body()
+    if not PaymentService().verify_razorpay_webhook_signature(body, x_razorpay_signature):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid Razorpay webhook signature.",
+        )
+
+    payload: dict[str, Any] = await request.json()
+    event_type = str(payload.get("event") or "").strip()
+    if not event_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing Razorpay event type.",
+        )
+
+    return OrderService(db).handle_razorpay_webhook(event_type, payload)

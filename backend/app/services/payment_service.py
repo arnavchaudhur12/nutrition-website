@@ -110,3 +110,18 @@ class PaymentService:
             sha256,
         ).hexdigest()
         return hmac.compare_digest(generated_signature, signature)
+
+    def verify_razorpay_webhook_signature(self, payload_body: bytes, signature: str) -> bool:
+        webhook_secret = self.settings.payment_webhook_secret
+        if not webhook_secret:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Razorpay webhook secret is not configured.",
+            )
+
+        generated_signature = hmac.new(
+            webhook_secret.encode("utf-8"),
+            payload_body,
+            sha256,
+        ).hexdigest()
+        return hmac.compare_digest(generated_signature, signature)

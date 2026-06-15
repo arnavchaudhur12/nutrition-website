@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta
+from typing import Any
 from uuid import uuid4
 from typing import Optional
 
@@ -152,18 +153,10 @@ class OrderService:
         if current_user:
             self._ensure_order_owner(order, current_user)
 
-        order.status = "confirmed"
-        order.payment_status = "paid"
-        order.payment_reference = payload.razorpay_order_id
-        self.db.add(order)
-        self.db.commit()
-        self.db.refresh(order)
-
-        self.email_service.send_order_confirmation(
-            buyer_email=order.email,
-            subject=f"Order confirmation for {order.order_number}",
-            html_body=self._build_email_body(order),
-            attachments=[self._build_invoice_attachment(order)],
+        self._mark_order_paid(
+            order,
+            razorpay_order_id=payload.razorpay_order_id,
+            should_send_confirmation=order.payment_status != "paid",
         )
 
         return {"success": True, "order_number": order.order_number}
@@ -191,6 +184,80 @@ class OrderService:
         )
 
         return {"success": True, "order_number": order.order_number}
+
+    def handle_razorpay_webhook(self, event_type: str, payload: dict[str, Any]) -> dict[str, object]:
+        if event_type not in {"payment.captured", "order.paid"}:
+            return {"success": True, "processed": False}
+
+        payment_entity = self._extract_entity(payload, "payment")
+        order_entity = self._extract_entity(payload, "order")
+        order = self._find_order_for_razorpay_payload(payment_entity, order_entity)
+        if not order:
+            return {"success": True, "processed": False}
+
+        already_paid = order.payment_status == "paid"
+        razorpay_order_id = str(
+            payment_entity.get("order_id")
+            or order_entity.get("id")
+            or order.payment_reference
+            or ""
+        )
+        self._mark_order_paid(
+            order,
+            razorpay_order_id=razorpay_order_id,
+            should_send_confirmation=not already_paid,
+        )
+        return {"success": True, "processed": True, "order_number": order.order_number}
+
+    @staticmethod
+    def _extract_entity(payload: dict[str, Any], entity_name: str) -> dict[str, Any]:
+        raw_entity = payload.get("payload", {}).get(entity_name, {}).get("entity", {})
+        return raw_entity if isinstance(raw_entity, dict) else {}
+
+    def _find_order_for_razorpay_payload(
+        self, payment_entity: dict[str, Any], order_entity: dict[str, Any]
+    ) -> Optional[Order]:
+        order_id = str(payment_entity.get("order_id") or order_entity.get("id") or "").strip()
+        if order_id:
+            order = self.orders.get_by_payment_reference(order_id)
+            if order:
+                return order
+
+        notes = payment_entity.get("notes")
+        if isinstance(notes, dict):
+            order_number = str(notes.get("order_number") or "").strip()
+            if order_number:
+                order = self.orders.get_by_order_number(order_number)
+                if order:
+                    return order
+
+        receipt = str(order_entity.get("receipt") or "").strip()
+        if receipt:
+            return self.orders.get_by_order_number(receipt)
+
+        return None
+
+    def _mark_order_paid(
+        self,
+        order: Order,
+        razorpay_order_id: str,
+        should_send_confirmation: bool,
+    ) -> None:
+        order.status = "confirmed"
+        order.payment_status = "paid"
+        if razorpay_order_id:
+            order.payment_reference = razorpay_order_id
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+
+        if should_send_confirmation:
+            self.email_service.send_order_confirmation(
+                buyer_email=order.email,
+                subject=f"Order confirmation for {order.order_number}",
+                html_body=self._build_email_body(order),
+                attachments=[self._build_invoice_attachment(order)],
+            )
 
     def _build_order(self, payload: OrderCreateRequest) -> Order:
         total_amount = 0.0
