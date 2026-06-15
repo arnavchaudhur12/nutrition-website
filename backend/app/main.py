@@ -18,12 +18,14 @@ from app.api.routes import (
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
+from app.db.migrations import run_startup_migrations
 from app.db.seed import seed_defaults
 from app.db.session import SessionLocal, engine
 
 settings = get_settings()
 configure_logging()
 Base.metadata.create_all(bind=engine)
+run_startup_migrations(engine)
 with SessionLocal() as session:
     seed_defaults(session)
 

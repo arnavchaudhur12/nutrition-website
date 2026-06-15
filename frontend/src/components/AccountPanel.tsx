@@ -6,6 +6,7 @@ import {
   createAdminProduct,
   deleteAdminCoupon,
   deleteAdminProduct,
+  fetchAdminCouponOrders,
   fetchAdminCustomerPortfolio,
   fetchAdminCoupons,
   fetchAdminHero,
@@ -14,6 +15,7 @@ import {
   resolveImageUrl,
   type AdminDashboardPeriod,
   type AdminCustomerPortfolio,
+  type AdminCouponOrderSummary,
   type AdminMetrics,
   type CouponCode,
   type HeroPayload,
@@ -212,6 +214,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
   const [selectedPeriod, setSelectedPeriod] = useState<AdminDashboardPeriod>("all_time");
   const [customerPortfolio, setCustomerPortfolio] = useState<AdminCustomerPortfolio[]>([]);
+  const [couponOrders, setCouponOrders] = useState<AdminCouponOrderSummary[]>([]);
   const [portfolioFilters, setPortfolioFilters] = useState<PortfolioFilters>(
     emptyPortfolioFilters()
   );
@@ -307,9 +310,10 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       const period: AdminDashboardPeriod = "all_time";
       if (currentUser.is_admin) {
         localStorage.setItem("lagads-admin-token", response.access_token);
-        const [dashboardMetrics, portfolio, catalog, hero, couponList] = await Promise.all([
+        const [dashboardMetrics, portfolio, couponSummary, catalog, hero, couponList] = await Promise.all([
           fetchAdminMetrics(response.access_token, period),
           fetchAdminCustomerPortfolio(response.access_token, period),
+          fetchAdminCouponOrders(response.access_token, period),
           fetchAdminProducts(response.access_token),
           fetchAdminHero(response.access_token),
           fetchAdminCoupons(response.access_token)
@@ -317,6 +321,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
         setSelectedPeriod(period);
         setMetrics(normalizeMetrics(dashboardMetrics));
         setCustomerPortfolio(portfolio);
+        setCouponOrders(couponSummary);
         setProducts(catalog);
         setHeroForm(heroToForm(hero));
         setCoupons(couponList);
@@ -385,14 +390,16 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     setLoading(true);
 
     try {
-      const [dashboardMetrics, portfolio, catalog, hero, couponList] = await Promise.all([
+      const [dashboardMetrics, portfolio, couponSummary, catalog, hero, couponList] = await Promise.all([
         fetchAdminMetrics(token, selectedPeriod),
         fetchAdminCustomerPortfolio(token, selectedPeriod),
+        fetchAdminCouponOrders(token, selectedPeriod),
         fetchAdminProducts(token),
         fetchAdminHero(token),
         fetchAdminCoupons(token)
       ]);
       setCustomerPortfolio(portfolio);
+      setCouponOrders(couponSummary);
       setProducts(catalog);
       setHeroForm(heroToForm(hero));
       setMetrics(normalizeMetrics(dashboardMetrics));
@@ -430,14 +437,16 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   };
 
   const refreshAdminCatalog = async (token: string) => {
-    const [dashboardMetrics, portfolio, catalog, couponList] = await Promise.all([
+    const [dashboardMetrics, portfolio, couponSummary, catalog, couponList] = await Promise.all([
       fetchAdminMetrics(token, selectedPeriod),
       fetchAdminCustomerPortfolio(token, selectedPeriod),
+      fetchAdminCouponOrders(token, selectedPeriod),
       fetchAdminProducts(token),
       fetchAdminCoupons(token)
     ]);
     setMetrics(normalizeMetrics(dashboardMetrics));
     setCustomerPortfolio(portfolio);
+    setCouponOrders(couponSummary);
     setProducts(catalog);
     setCoupons(couponList);
   };
@@ -456,13 +465,15 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     resetFeedback();
     setLoading(true);
     try {
-      const [dashboardMetrics, portfolio] = await Promise.all([
+      const [dashboardMetrics, portfolio, couponSummary] = await Promise.all([
         fetchAdminMetrics(token, period),
-        fetchAdminCustomerPortfolio(token, period)
+        fetchAdminCustomerPortfolio(token, period),
+        fetchAdminCouponOrders(token, period)
       ]);
       setSelectedPeriod(period);
       setMetrics(normalizeMetrics(dashboardMetrics));
       setCustomerPortfolio(portfolio);
+      setCouponOrders(couponSummary);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to update date filter.");
     } finally {
@@ -893,6 +904,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                 <a href="#admin-sales" className="pill">Sales</a>
                 <a href="#admin-portfolio" className="pill">Customer Portfolio</a>
                 <a href="#admin-coupons" className="pill">Coupons</a>
+                <a href="#admin-coupon-orders" className="pill">Coupon Orders</a>
                 <a href="#admin-hero" className="pill">Hero Images</a>
                 <a href="#admin-products" className="pill">Products</a>
               </div>
@@ -1008,7 +1020,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                               <td>{entry.customer_name}</td>
                               <td>{entry.delivery_address}</td>
                               <td>{entry.payment_mode}</td>
-                              <td>{entry.only_success ? "Success" : "Failed"}</td>
+                              <td>Success</td>
                               <td>{formatCurrency(entry.amount_count)}</td>
                               <td>{entry.products}</td>
                               <td>{entry.product_quantity}</td>
@@ -1071,6 +1083,43 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                         </article>
                       ))
                     )}
+                  </div>
+                </section>
+
+                <section className="admin-section" id="admin-coupon-orders">
+                  <div className="admin-section-header">
+                    <h3>Coupon Wise Orders</h3>
+                    <span>Successful orders grouped against each coupon for the selected date range.</span>
+                  </div>
+                  <div className="admin-table-shell">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Coupon Code</th>
+                          <th>Orders Count</th>
+                          <th>Total Revenue</th>
+                          <th>Total Products Sold</th>
+                          <th>Order Numbers</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {couponOrders.length === 0 ? (
+                          <tr>
+                            <td colSpan={5} className="admin-table-empty">No successful coupon-based orders found.</td>
+                          </tr>
+                        ) : (
+                          couponOrders.map((entry) => (
+                            <tr key={entry.coupon_code}>
+                              <td>{entry.coupon_code}</td>
+                              <td>{entry.orders_count}</td>
+                              <td>{formatCurrency(entry.total_revenue)}</td>
+                              <td>{entry.total_products_sold}</td>
+                              <td>{entry.order_numbers}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
                   </div>
                 </section>
 

@@ -17,6 +17,7 @@ function getSessionToken(): string {
 const initialFormState = {
   customerName: "",
   deliveryAddress: "",
+  pincode: "",
   phoneNumber: "",
   email: "",
   alternatePhoneNumber: "",
@@ -89,8 +90,16 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     if (enrichedCart.length === 0) {
       return "Add at least one product to the cart before payment.";
     }
-    if (!form.customerName || !form.deliveryAddress || !form.phoneNumber || !form.email) {
-      return "Please fill name, delivery address, phone number, and email.";
+    if (
+      !form.customerName ||
+      !form.deliveryAddress ||
+      !form.pincode ||
+      !form.phoneNumber ||
+      !form.email ||
+      !form.alternatePhoneNumber ||
+      !form.comments
+    ) {
+      return "Please fill all mandatory fields. Only coupon code is optional.";
     }
     if (totalAmount < 1) {
       return "Minimum payment amount is Rs. 1.";
@@ -129,7 +138,8 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         phone_number: form.phoneNumber,
         alternate_phone_number: form.alternatePhoneNumber || undefined,
         delivery_address: form.deliveryAddress,
-        comments: form.comments || undefined,
+        pincode: form.pincode,
+        comments: form.comments,
         coupon_code: form.couponCode.trim() || undefined,
         items: enrichedCart.map((item) => ({
           product_slug: item.product.id,
@@ -269,10 +279,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     <section className="checkout-shell" id="checkout">
       <div>
         <p className="eyebrow">Checkout workflow</p>
-        <h2>Review your order, then open customer details when you're ready</h2>
+        <h2>Fill customer details and review the final order summary before payment</h2>
         <p>
-          The customer detail form stays closed until the shopper clicks for it. Order summary,
-          product breakup, savings, and final payable amount are visible before the payment gateway opens.
+          All checkout details except the coupon code are mandatory. The final product breakup and
+          payable amount appear below the form before the payment gateway opens.
         </p>
         {user ? (
           <p className="muted">
@@ -301,6 +311,14 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
               />
             </label>
             <label className="field">
+              <span>Pincode</span>
+              <input
+                placeholder="Enter delivery pincode"
+                value={form.pincode}
+                onChange={(event) => updateField("pincode", event.target.value)}
+              />
+            </label>
+            <label className="field">
               <span>Phone Number</span>
               <input
                 placeholder="Primary mobile number"
@@ -320,7 +338,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             <label className="field">
               <span>Alternative Phone Number</span>
               <input
-                placeholder="Optional alternate mobile number"
+                placeholder="Enter alternate mobile number"
                 value={form.alternatePhoneNumber}
                 onChange={(event) => updateField("alternatePhoneNumber", event.target.value)}
               />
@@ -337,7 +355,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             <label className="field">
               <span>Comments or Special Request</span>
               <textarea
-                placeholder="Any delivery notes or preferences"
+                placeholder="Enter delivery notes or request"
                 rows={3}
                 value={form.comments}
                 onChange={(event) => updateField("comments", event.target.value)}

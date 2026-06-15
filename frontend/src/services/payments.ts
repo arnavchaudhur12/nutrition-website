@@ -9,6 +9,7 @@ export type CreatePaymentOrderPayload = {
   phone_number?: string;
   alternate_phone_number?: string;
   delivery_address?: string;
+  pincode?: string;
   comments?: string;
   coupon_code?: string;
   items?: Array<{

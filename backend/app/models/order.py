@@ -22,7 +22,9 @@ class Order(Base):
     phone_number: Mapped[str] = mapped_column(String(32))
     alternate_phone_number: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     delivery_address: Mapped[str] = mapped_column(Text)
+    pincode: Mapped[str] = mapped_column(String(16), default="")
     comments: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    coupon_code: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     items: Mapped[list["OrderItem"]] = relationship(

@@ -8,7 +8,7 @@ from app.api.dependencies import get_current_admin
 from app.db.session import get_db
 from app.schemas.coupon import CouponCreateRequest, CouponRead
 from app.schemas.hero import HeroSettingsRead, HeroSettingsUpdate
-from app.schemas.order import AdminCustomerPortfolioRead
+from app.schemas.order import AdminCouponOrderSummaryRead, AdminCustomerPortfolioRead
 from app.schemas.product import ProductCreate, ProductRead
 from app.services.coupon_service import CouponService
 from app.services.hero_service import HeroService
@@ -45,6 +45,15 @@ def get_customer_portfolio(
     _admin=Depends(get_current_admin),
 ) -> list[AdminCustomerPortfolioRead]:
     return OrderService(db).list_admin_customer_portfolio(period)
+
+
+@router.get("/coupon-orders", response_model=list[AdminCouponOrderSummaryRead])
+def get_coupon_orders(
+    period: str = "all_time",
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+) -> list[AdminCouponOrderSummaryRead]:
+    return OrderService(db).list_coupon_order_summary(period)
 
 
 @router.put("/hero", response_model=HeroSettingsRead)

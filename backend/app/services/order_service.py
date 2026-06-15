@@ -10,6 +10,7 @@ from app.models.user import User
 from app.repositories.order import OrderRepository
 from app.repositories.product import ProductRepository
 from app.schemas.order import (
+    AdminCouponOrderSummaryRead,
     AdminCustomerPortfolioRead,
     OrderCreateRequest,
     RazorpayFailureRequest,
@@ -73,9 +74,10 @@ class OrderService:
                 customer_name=payload.customer_name or (current_user.full_name if current_user else ""),
                 email=current_user.email if current_user else payload.email,  # type: ignore[arg-type]
                 phone_number=payload.phone_number or (current_user.phone_number if current_user else "") or "",
-                alternate_phone_number=payload.alternate_phone_number,
+                alternate_phone_number=payload.alternate_phone_number or "",
                 delivery_address=payload.delivery_address or "",
-                comments=payload.comments,
+                pincode=payload.pincode or "",
+                comments=payload.comments or "",
                 items=payload.items,
             )
             order = self._build_order(order_payload)
@@ -84,6 +86,7 @@ class OrderService:
             discount_percent = self._get_coupon_discount_percent(payload.coupon_code)
             discounted_total = self._apply_discount(subtotal, discount_percent)
             order.total_amount = discounted_total
+            order.coupon_code = payload.coupon_code.strip().upper() if payload.coupon_code else None
             amount_paise = max(100, int(round(discounted_total * 100)))
             receipt = receipt or order.order_number
         else:
@@ -239,6 +242,7 @@ class OrderService:
             phone_number=payload.phone_number,
             alternate_phone_number=payload.alternate_phone_number,
             delivery_address=payload.delivery_address,
+            pincode=payload.pincode,
             comments=payload.comments,
             items=order_items,
         )
@@ -260,6 +264,7 @@ class OrderService:
                     created_at=order.created_at,
                     customer_name=order.customer_name,
                     delivery_address=order.delivery_address,
+                    pincode=order.pincode,
                     payment_mode="Razorpay",
                     only_success=self._is_successful_order(order),
                     amount_count=float(order.total_amount),
@@ -273,6 +278,49 @@ class OrderService:
                 )
             )
         return portfolio
+
+    def list_coupon_order_summary(self, period: str = "all_time") -> list[AdminCouponOrderSummaryRead]:
+        grouped: dict[str, dict[str, object]] = {}
+        for order in self.orders.list_orders():
+            if (
+                not self._is_successful_order(order)
+                or not self._matches_period(order.created_at, period)
+                or not order.coupon_code
+            ):
+                continue
+
+            coupon_code = order.coupon_code.strip().upper()
+            bucket = grouped.setdefault(
+                coupon_code,
+                {
+                    "orders_count": 0,
+                    "total_revenue": 0.0,
+                    "total_products_sold": 0,
+                    "order_numbers": [],
+                },
+            )
+            bucket["orders_count"] = int(bucket["orders_count"]) + 1
+            bucket["total_revenue"] = float(bucket["total_revenue"]) + float(order.total_amount)
+            bucket["total_products_sold"] = int(bucket["total_products_sold"]) + sum(
+                item.quantity for item in order.items
+            )
+            order_numbers = bucket["order_numbers"]
+            assert isinstance(order_numbers, list)
+            order_numbers.append(order.order_number)
+
+        return sorted(
+            [
+                AdminCouponOrderSummaryRead(
+                    coupon_code=coupon_code,
+                    orders_count=int(values["orders_count"]),
+                    total_revenue=round(float(values["total_revenue"]), 2),
+                    total_products_sold=int(values["total_products_sold"]),
+                    order_numbers=", ".join(values["order_numbers"]),
+                )
+                for coupon_code, values in grouped.items()
+            ],
+            key=lambda item: (-item.orders_count, -item.total_revenue, item.coupon_code),
+        )
 
     @staticmethod
     def _ensure_order_owner(order: Order, user: User) -> None:

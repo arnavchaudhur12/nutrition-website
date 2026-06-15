@@ -14,9 +14,10 @@ class OrderCreateRequest(BaseModel):
     customer_name: str
     email: EmailStr
     phone_number: str
-    alternate_phone_number: Optional[str] = None
+    alternate_phone_number: str
     delivery_address: str
-    comments: Optional[str] = None
+    pincode: str
+    comments: str
     items: list[OrderItemRequest]
 
 
@@ -29,6 +30,7 @@ class RazorpayOrderCreateRequest(BaseModel):
     phone_number: Optional[str] = None
     alternate_phone_number: Optional[str] = None
     delivery_address: Optional[str] = None
+    pincode: Optional[str] = None
     comments: Optional[str] = None
     coupon_code: Optional[str] = None
     items: list[OrderItemRequest] = Field(default_factory=list)
@@ -40,7 +42,10 @@ class RazorpayOrderCreateRequest(BaseModel):
                 "customer_name": self.customer_name,
                 "email": self.email,
                 "phone_number": self.phone_number,
+                "alternate_phone_number": self.alternate_phone_number,
                 "delivery_address": self.delivery_address,
+                "pincode": self.pincode,
+                "comments": self.comments,
             }
             missing_fields = [field for field, value in required_fields.items() if not value]
             if missing_fields:
@@ -104,7 +109,9 @@ class CustomerOrderRead(BaseModel):
     customer_name: str
     email: EmailStr
     phone_number: str
+    alternate_phone_number: Optional[str] = None
     delivery_address: str
+    pincode: str
     comments: Optional[str] = None
     items: list[OrderItemRead]
 
@@ -116,6 +123,7 @@ class AdminCustomerPortfolioRead(BaseModel):
     created_at: datetime
     customer_name: str
     delivery_address: str
+    pincode: str
     payment_mode: str
     only_success: bool
     amount_count: float
@@ -126,3 +134,11 @@ class AdminCustomerPortfolioRead(BaseModel):
     email: EmailStr
     status: str
     payment_status: str
+
+
+class AdminCouponOrderSummaryRead(BaseModel):
+    coupon_code: str
+    orders_count: int
+    total_revenue: float
+    total_products_sold: int
+    order_numbers: str

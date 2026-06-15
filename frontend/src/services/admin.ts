@@ -37,6 +37,14 @@ export type AdminCustomerPortfolio = {
   payment_status: string;
 };
 
+export type AdminCouponOrderSummary = {
+  coupon_code: string;
+  orders_count: number;
+  total_revenue: number;
+  total_products_sold: number;
+  order_numbers: string;
+};
+
 export type CouponCode = {
   id: number;
   code: string;
@@ -73,6 +81,19 @@ export async function fetchAdminCustomerPortfolio(
     }
   );
   return parseJson<AdminCustomerPortfolio[]>(response, "Unable to load customer portfolio.");
+}
+
+export async function fetchAdminCouponOrders(
+  token: string,
+  period: AdminDashboardPeriod
+): Promise<AdminCouponOrderSummary[]> {
+  const response = await fetch(
+    `${API_BASE_URL}/admin/coupon-orders?period=${encodeURIComponent(period)}`,
+    {
+      headers: authHeaders(token)
+    }
+  );
+  return parseJson<AdminCouponOrderSummary[]>(response, "Unable to load coupon-wise orders.");
 }
 
 type ProductPayload = {
