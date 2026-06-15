@@ -1,18 +1,14 @@
+import { resolveHeroImageUrl } from "../services/hero";
 import type { HeroConfig } from "../types/hero";
-
-const desktopHeroImage = new URL(
-  "../../../all_images/global_images/website_font/ChatGPT Image May 22, 2026, 02_11_24 PM.png",
-  import.meta.url
-).href;
-const mobileHeroImage = new URL(
-  "../../../all_images/global_images/mobile_font/IMG_0608.PNG",
-  import.meta.url
-).href;
 
 export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
   if (!hero) {
     return null;
   }
+
+  const desktopHeroImage =
+    resolveHeroImageUrl(hero.images[0]?.image_url) ?? "/hero-quote-background.jpeg";
+  const mobileHeroImage = resolveHeroImageUrl(hero.images[1]?.image_url) ?? desktopHeroImage;
 
   return (
     <section className="hero">
@@ -21,8 +17,8 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
         <img src={desktopHeroImage} alt={hero.headline} className="hero-background-image" />
       </picture>
       <div className="hero-actions hero-actions-fixed">
-        <a className="pill pill-primary" href="#products">
-          Shop Now
+        <a className="pill pill-primary" href={hero.cta_link || "#products"}>
+          {hero.cta_label || "Shop Now"}
         </a>
       </div>
     </section>

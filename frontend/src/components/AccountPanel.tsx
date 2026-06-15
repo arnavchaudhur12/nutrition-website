@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { buildAuthUser, useAuth } from "../context/AuthContext";
 import { fetchCurrentUser, login, register, resetPassword } from "../services/auth";
 import {
@@ -6,11 +6,13 @@ import {
   createAdminProduct,
   deleteAdminCoupon,
   deleteAdminProduct,
+  fetchAdminCustomerPortfolio,
   fetchAdminCoupons,
   fetchAdminHero,
   fetchAdminMetrics,
   fetchAdminProducts,
   resolveImageUrl,
+  type AdminCustomerPortfolio,
   type AdminMetrics,
   type CouponCode,
   type HeroPayload,
@@ -59,6 +61,20 @@ type HeroFormState = {
   image_urls: string[];
 };
 
+type PortfolioFilters = {
+  created_at: string;
+  customer_name: string;
+  delivery_address: string;
+  payment_mode: string;
+  only_success: string;
+  amount_count: string;
+  products: string;
+  product_quantity: string;
+  product_count: string;
+  phone_number: string;
+  email: string;
+};
+
 const emptyProductForm = (): ProductFormState => ({
   slug: "",
   name: "",
@@ -82,6 +98,20 @@ const emptyHeroForm = (): HeroFormState => ({
   badge_title: "",
   badge_subtitle: "",
   image_urls: ["", "", "", "", ""]
+});
+
+const emptyPortfolioFilters = (): PortfolioFilters => ({
+  created_at: "",
+  customer_name: "",
+  delivery_address: "",
+  payment_mode: "",
+  only_success: "",
+  amount_count: "",
+  products: "",
+  product_quantity: "",
+  product_count: "",
+  phone_number: "",
+  email: ""
 });
 
 function productToForm(product: AdminProduct): ProductFormState {
@@ -147,6 +177,21 @@ function buildHeroPayload(form: HeroFormState): HeroPayload {
   };
 }
 
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    maximumFractionDigits: 0
+  }).format(amount);
+}
+
+function formatPortfolioDate(value: string): string {
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short"
+  }).format(new Date(value));
+}
+
 export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: AccountPanelProps) {
   const { user, loginUser, logoutUser } = useAuth();
   const [view, setView] = useState<View>("menu");
@@ -154,6 +199,10 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [customerPortfolio, setCustomerPortfolio] = useState<AdminCustomerPortfolio[]>([]);
+  const [portfolioFilters, setPortfolioFilters] = useState<PortfolioFilters>(
+    emptyPortfolioFilters()
+  );
   const [coupons, setCoupons] = useState<CouponCode[]>([]);
   const [newCouponCode, setNewCouponCode] = useState("");
   const [newCouponDiscount, setNewCouponDiscount] = useState("10");
@@ -176,6 +225,54 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [resetEmail, setResetEmail] = useState("");
   const [resetPasswordValue, setResetPasswordValue] = useState("");
   const [showResetPassword, setShowResetPassword] = useState(false);
+
+  const filteredCustomerPortfolio = useMemo(() => {
+    const normalize = (value: string) => value.trim().toLowerCase();
+
+    return customerPortfolio.filter((row) => {
+      const matchesText = (source: string, filterValue: string) =>
+        source.toLowerCase().includes(normalize(filterValue));
+
+      if (portfolioFilters.created_at && !matchesText(formatPortfolioDate(row.created_at), portfolioFilters.created_at)) {
+        return false;
+      }
+      if (portfolioFilters.customer_name && !matchesText(row.customer_name, portfolioFilters.customer_name)) {
+        return false;
+      }
+      if (portfolioFilters.delivery_address && !matchesText(row.delivery_address, portfolioFilters.delivery_address)) {
+        return false;
+      }
+      if (portfolioFilters.payment_mode && !matchesText(row.payment_mode, portfolioFilters.payment_mode)) {
+        return false;
+      }
+      if (portfolioFilters.only_success) {
+        const expected = portfolioFilters.only_success.toLowerCase();
+        const actual = row.only_success ? "success" : "failed";
+        if (!actual.includes(expected)) {
+          return false;
+        }
+      }
+      if (portfolioFilters.amount_count && !String(row.amount_count).includes(portfolioFilters.amount_count.trim())) {
+        return false;
+      }
+      if (portfolioFilters.products && !matchesText(row.products, portfolioFilters.products)) {
+        return false;
+      }
+      if (portfolioFilters.product_quantity && !String(row.product_quantity).includes(portfolioFilters.product_quantity.trim())) {
+        return false;
+      }
+      if (portfolioFilters.product_count && !String(row.product_count).includes(portfolioFilters.product_count.trim())) {
+        return false;
+      }
+      if (portfolioFilters.phone_number && !matchesText(row.phone_number, portfolioFilters.phone_number)) {
+        return false;
+      }
+      if (portfolioFilters.email && !matchesText(row.email, portfolioFilters.email)) {
+        return false;
+      }
+      return true;
+    });
+  }, [customerPortfolio, portfolioFilters]);
 
   const resetFeedback = () => {
     setMessage("");
@@ -204,18 +301,21 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       loginUser(buildAuthUser(currentUser.email, currentUser.full_name, currentUser.is_admin));
       if (currentUser.is_admin) {
         localStorage.setItem("lagads-admin-token", response.access_token);
-        const [dashboardMetrics, catalog, hero, couponList] = await Promise.all([
+        const [dashboardMetrics, portfolio, catalog, hero, couponList] = await Promise.all([
           fetchAdminMetrics(response.access_token),
+          fetchAdminCustomerPortfolio(response.access_token),
           fetchAdminProducts(response.access_token),
           fetchAdminHero(response.access_token),
           fetchAdminCoupons(response.access_token)
         ]);
+        setMetrics(dashboardMetrics);
+        setCustomerPortfolio(portfolio);
         setProducts(catalog);
         setHeroForm(heroToForm(hero));
-        setMetrics(dashboardMetrics);
         setCoupons(couponList);
         setEditingProductId(null);
         setProductForm(emptyProductForm());
+        setPortfolioFilters(emptyPortfolioFilters());
         setView("admin");
         setMessage("Admin login successful. Dashboard loaded.");
       } else {
@@ -278,18 +378,21 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     setLoading(true);
 
     try {
-      const [dashboardMetrics, catalog, hero, couponList] = await Promise.all([
+      const [dashboardMetrics, portfolio, catalog, hero, couponList] = await Promise.all([
         fetchAdminMetrics(token),
+        fetchAdminCustomerPortfolio(token),
         fetchAdminProducts(token),
         fetchAdminHero(token),
         fetchAdminCoupons(token)
       ]);
+      setCustomerPortfolio(portfolio);
       setProducts(catalog);
       setHeroForm(heroToForm(hero));
       setMetrics(dashboardMetrics);
       setCoupons(couponList);
       setEditingProductId(null);
       setProductForm(emptyProductForm());
+      setPortfolioFilters(emptyPortfolioFilters());
       setView("admin");
       setMessage("Admin dashboard loaded.");
     } catch (authError) {
@@ -320,14 +423,20 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   };
 
   const refreshAdminCatalog = async (token: string) => {
-    const [dashboardMetrics, catalog, couponList] = await Promise.all([
+    const [dashboardMetrics, portfolio, catalog, couponList] = await Promise.all([
       fetchAdminMetrics(token),
+      fetchAdminCustomerPortfolio(token),
       fetchAdminProducts(token),
       fetchAdminCoupons(token)
     ]);
     setMetrics(dashboardMetrics);
+    setCustomerPortfolio(portfolio);
     setProducts(catalog);
     setCoupons(couponList);
+  };
+
+  const handlePortfolioFilterChange = (key: keyof PortfolioFilters, value: string) => {
+    setPortfolioFilters((current) => ({ ...current, [key]: value }));
   };
 
   const handleEditProduct = (product: AdminProduct) => {
@@ -749,30 +858,139 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           </button>
           {metrics ? (
             <>
+              <div className="admin-tabs">
+                <a href="#admin-sales" className="pill">Sales</a>
+                <a href="#admin-portfolio" className="pill">Customer Portfolio</a>
+                <a href="#admin-coupons" className="pill">Coupons</a>
+                <a href="#admin-hero" className="pill">Hero Images</a>
+                <a href="#admin-products" className="pill">Products</a>
+              </div>
               <div className="admin-metrics">
                 <h3>Sales Snapshot</h3>
                 <div className="metrics-grid">
                   <div className="metric-card">
-                    <span>Total Orders</span>
-                    <strong>{metrics.total_orders}</strong>
+                    <span>Total Actual Sales Count</span>
+                    <strong>{metrics.total_actual_sales_count}</strong>
                   </div>
                   <div className="metric-card">
-                    <span>Total Revenue</span>
-                    <strong>Rs. {metrics.total_revenue}</strong>
+                    <span>Total Actual Revenue</span>
+                    <strong>{formatCurrency(metrics.total_actual_revenue)}</strong>
                   </div>
                   <div className="metric-card">
-                    <span>Top Products</span>
-                    <div className="metric-list">
-                      {metrics.top_products.length === 0
-                        ? "No orders yet."
-                        : metrics.top_products.map(([name, qty]) => `${name}: ${qty}`).join(", ")}
-                    </div>
+                    <span>Total Product Quantity Sold</span>
+                    <strong>{metrics.total_products_sold}</strong>
+                  </div>
+                  <div className="metric-card">
+                    <span>Cancelled / Unsuccessful Orders</span>
+                    <strong>{metrics.cancelled_orders_count}</strong>
                   </div>
                 </div>
+                <p className="muted">{metrics.note}</p>
               </div>
 
               <div className="admin-layout">
-                <section className="admin-section">
+                <section className="admin-section admin-section-wide" id="admin-sales">
+                  <div className="admin-section-header">
+                    <h3>Product Performance</h3>
+                    <span>Product-wise quantity and revenue excluding cancelled and failed orders.</span>
+                  </div>
+                  <div className="admin-table-shell">
+                    <table className="admin-table">
+                      <thead>
+                        <tr>
+                          <th>Product</th>
+                          <th>Total Product Wise Count</th>
+                          <th>Total Product Wise Amount</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metrics.product_performance.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="admin-table-empty">No successful sales yet.</td>
+                          </tr>
+                        ) : (
+                          metrics.product_performance.map((product) => (
+                            <tr key={product.product_name}>
+                              <td>{product.product_name}</td>
+                              <td>{product.quantity_sold}</td>
+                              <td>{formatCurrency(product.total_amount)}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section className="admin-section admin-section-wide" id="admin-portfolio">
+                  <div className="admin-section-header">
+                    <h3>Customer Portfolio</h3>
+                    <span>Historical customer journey in tabular format with column-level filters.</span>
+                  </div>
+                  <div className="admin-table-shell">
+                    <table className="admin-table admin-table-portfolio">
+                      <thead>
+                        <tr>
+                          <th>Date</th>
+                          <th>Person Name</th>
+                          <th>Person Address</th>
+                          <th>Payment Mode</th>
+                          <th>Only Success</th>
+                          <th>Amount Count</th>
+                          <th>Products</th>
+                          <th>Product Quantity</th>
+                          <th>Product Count</th>
+                          <th>Phone Number</th>
+                          <th>Email Address</th>
+                        </tr>
+                        <tr className="admin-table-filters">
+                          <th><input value={portfolioFilters.created_at} onChange={(event) => handlePortfolioFilterChange("created_at", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.customer_name} onChange={(event) => handlePortfolioFilterChange("customer_name", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.delivery_address} onChange={(event) => handlePortfolioFilterChange("delivery_address", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.payment_mode} onChange={(event) => handlePortfolioFilterChange("payment_mode", event.target.value)} placeholder="Filter" /></th>
+                          <th>
+                            <select value={portfolioFilters.only_success} onChange={(event) => handlePortfolioFilterChange("only_success", event.target.value)}>
+                              <option value="">All</option>
+                              <option value="success">Success</option>
+                              <option value="failed">Failed</option>
+                            </select>
+                          </th>
+                          <th><input value={portfolioFilters.amount_count} onChange={(event) => handlePortfolioFilterChange("amount_count", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.products} onChange={(event) => handlePortfolioFilterChange("products", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.product_quantity} onChange={(event) => handlePortfolioFilterChange("product_quantity", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.product_count} onChange={(event) => handlePortfolioFilterChange("product_count", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.phone_number} onChange={(event) => handlePortfolioFilterChange("phone_number", event.target.value)} placeholder="Filter" /></th>
+                          <th><input value={portfolioFilters.email} onChange={(event) => handlePortfolioFilterChange("email", event.target.value)} placeholder="Filter" /></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filteredCustomerPortfolio.length === 0 ? (
+                          <tr>
+                            <td colSpan={11} className="admin-table-empty">No matching customer journeys found.</td>
+                          </tr>
+                        ) : (
+                          filteredCustomerPortfolio.map((entry) => (
+                            <tr key={entry.order_number}>
+                              <td>{formatPortfolioDate(entry.created_at)}</td>
+                              <td>{entry.customer_name}</td>
+                              <td>{entry.delivery_address}</td>
+                              <td>{entry.payment_mode}</td>
+                              <td>{entry.only_success ? "Success" : "Failed"}</td>
+                              <td>{formatCurrency(entry.amount_count)}</td>
+                              <td>{entry.products}</td>
+                              <td>{entry.product_quantity}</td>
+                              <td>{entry.product_count}</td>
+                              <td>{entry.phone_number}</td>
+                              <td>{entry.email}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <section className="admin-section" id="admin-coupons">
                   <div className="admin-section-header">
                     <h3>Coupon Codes</h3>
                     <span>Create 6-character alphanumeric coupons with percentage discount.</span>
@@ -823,7 +1041,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   </div>
                 </section>
 
-                <section className="admin-section">
+                <section className="admin-section" id="admin-hero">
                   <div className="admin-section-header">
                     <h3>Homepage Hero</h3>
                     <span>Control the main banner text, badge copy, CTA, and up to 5 hero images.</span>
@@ -889,11 +1107,17 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   </div>
                   <div className="field">
                     <span>Hero Images</span>
-                    <p className="muted">Upload up to 5 hero images. They rotate automatically on the homepage.</p>
+                    <p className="muted">Use image 1 for the website font image and image 2 for the mobile font image shown on the live homepage.</p>
                     <div className="admin-image-grid">
                       {heroForm.image_urls.map((imageUrl, index) => (
                         <div key={`hero-image-${index}`} className="admin-image-slot">
-                          <strong>Hero Image {index + 1}</strong>
+                          <strong>
+                            {index === 0
+                              ? "Website Font Image"
+                              : index === 1
+                                ? "Mobile Font Image"
+                                : `Hero Image ${index + 1}`}
+                          </strong>
                           <input
                             type="file"
                             accept="image/*"
@@ -927,7 +1151,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   </div>
                 </section>
 
-                <section className="admin-section">
+                <section className="admin-section" id="admin-products">
                   <div className="admin-section-header">
                     <h3>Product Catalog</h3>
                     <button className="pill" onClick={handleCreateNewProduct}>

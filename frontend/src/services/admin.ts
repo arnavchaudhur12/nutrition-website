@@ -3,10 +3,33 @@ import type { HeroConfig } from "../types/hero";
 import type { AdminProduct } from "../types/admin";
 
 export type AdminMetrics = {
-  total_orders: number;
-  total_revenue: number;
-  top_products: Array<[string, number]>;
+  total_actual_sales_count: number;
+  total_actual_revenue: number;
+  cancelled_orders_count: number;
+  total_products_sold: number;
+  product_performance: Array<{
+    product_name: string;
+    quantity_sold: number;
+    total_amount: number;
+  }>;
   note: string;
+};
+
+export type AdminCustomerPortfolio = {
+  order_number: string;
+  created_at: string;
+  customer_name: string;
+  delivery_address: string;
+  payment_mode: string;
+  only_success: boolean;
+  amount_count: number;
+  products: string;
+  product_quantity: number;
+  product_count: number;
+  phone_number: string;
+  email: string;
+  status: string;
+  payment_status: string;
 };
 
 export type CouponCode = {
@@ -29,6 +52,15 @@ export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
   }
 
   return (await response.json()) as AdminMetrics;
+}
+
+export async function fetchAdminCustomerPortfolio(
+  token: string
+): Promise<AdminCustomerPortfolio[]> {
+  const response = await fetch(`${API_BASE_URL}/admin/customer-portfolio`, {
+    headers: authHeaders(token)
+  });
+  return parseJson<AdminCustomerPortfolio[]>(response, "Unable to load customer portfolio.");
 }
 
 type ProductPayload = {

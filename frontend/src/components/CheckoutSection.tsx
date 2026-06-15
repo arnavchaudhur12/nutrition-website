@@ -35,6 +35,7 @@ function formatRupees(amount: number) {
 export function CheckoutSection({ products }: CheckoutSectionProps) {
   const { user } = useAuth();
   const { items, clearCart } = useCart();
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [form, setForm] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
@@ -59,11 +60,16 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     (total, item) => total + item.variant.sellingPrice * item.quantity,
     0
   );
+  const itemTotal = enrichedCart.reduce((total, item) => total + item.variant.mrp * item.quantity, 0);
+  const itemCount = enrichedCart.reduce((total, item) => total + item.quantity, 0);
+  const productCount = enrichedCart.length;
   const discountedTotal = Math.max(
     1,
     Math.round((totalAmount * ((100 - couponDiscountPercent) / 100)) * 100) / 100
   );
   const discountAmount = Math.max(0, Math.round((totalAmount - discountedTotal) * 100) / 100);
+  const premiumSavings = Math.max(0, Math.round((itemTotal - totalAmount) * 100) / 100);
+  const totalSavings = Math.round((premiumSavings + discountAmount) * 100) / 100;
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -178,6 +184,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             setCouponDiscountPercent(0);
             setCouponStatus("");
             setForm(initialFormState);
+            setDetailsOpen(false);
             window.alert(
               "Thank you for your purchase from Lagads Nutrition! Please stay on this website for a couple of seconds and do not refresh."
             );
@@ -264,97 +271,172 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     <section className="checkout-shell" id="checkout">
       <div>
         <p className="eyebrow">Checkout workflow</p>
-        <h2>Confirm delivery details and continue to payment</h2>
+        <h2>Review your order, then open customer details when you're ready</h2>
         <p>
-          Users can complete checkout with card/UPI/netbanking. Logged-in users also get
-          order history in their account. Both buyer and admin receive emails after successful payment.
+          The customer detail form stays closed until the shopper clicks for it. Order summary,
+          product breakup, savings, and final payable amount are visible before the payment gateway opens.
         </p>
+        {user ? (
+          <p className="muted">
+            Logged-in users also get order history in their account after successful payment.
+          </p>
+        ) : null}
       </div>
 
-      <form className="checkout-form">
-        <label className="field">
-          <span>Full Name</span>
-          <input
-            placeholder="Enter full name"
-            value={form.customerName}
-            onChange={(event) => updateField("customerName", event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Delivery Address</span>
-          <textarea
-            placeholder="House number, street, city, state, pin code"
-            rows={4}
-            value={form.deliveryAddress}
-            onChange={(event) => updateField("deliveryAddress", event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Phone Number</span>
-          <input
-            placeholder="Primary mobile number"
-            value={form.phoneNumber}
-            onChange={(event) => updateField("phoneNumber", event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Email Address</span>
-          <input
-            type="email"
-            placeholder="your@email.com"
-            value={form.email}
-            onChange={(event) => updateField("email", event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Alternative Phone Number</span>
-          <input
-            placeholder="Optional alternate mobile number"
-            value={form.alternatePhoneNumber}
-            onChange={(event) => updateField("alternatePhoneNumber", event.target.value)}
-          />
-        </label>
-        <label className="field">
-          <span>Coupon Code (Optional)</span>
-          <input
-            placeholder="Enter 6-character coupon"
-            value={form.couponCode}
-            onChange={(event) => updateField("couponCode", event.target.value.toUpperCase())}
-            maxLength={6}
-          />
-        </label>
-        <label className="field">
-          <span>Comments or Special Request</span>
-          <textarea
-            placeholder="Any delivery notes or preferences"
-            rows={3}
-            value={form.comments}
-            onChange={(event) => updateField("comments", event.target.value)}
-          />
-        </label>
-        <div className="checkout-summary">
-          <span>{couponDiscountPercent > 0 ? "Discounted Total" : "Cart Total"}</span>
-          {couponDiscountPercent > 0 ? (
-            <strong>
-              {formatRupees(discountedTotal)} (Saved {formatRupees(discountAmount)})
-            </strong>
-          ) : (
-            <strong>{formatRupees(totalAmount)}</strong>
-          )}
+      <div className="checkout-form">
+        <div className="checkout-order-card">
+          <div className="checkout-order-header">
+            <div>
+              <span className="eyebrow">Order Summary</span>
+              <h3>
+                {itemCount} Item{itemCount === 1 ? "" : "s"}
+              </h3>
+            </div>
+            <button
+              type="button"
+              className="pill"
+              onClick={() => setDetailsOpen((current) => !current)}
+            >
+              {detailsOpen ? "Hide Customer Details" : "Customer Details"}
+            </button>
+          </div>
+
+          <div className="checkout-product-list">
+            {enrichedCart.length === 0 ? (
+              <p className="muted">Add products to the cart to see the payment breakup.</p>
+            ) : (
+              enrichedCart.map((item) => (
+                <article
+                  key={`${item.productId}-${item.variantId}`}
+                  className="checkout-product-row"
+                >
+                  <div>
+                    <strong>{item.product.flavour}</strong>
+                    <p>
+                      {item.variant.weight} x {item.quantity}
+                    </p>
+                  </div>
+                  <strong>{formatRupees(item.variant.sellingPrice * item.quantity)}</strong>
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="checkout-summary-grid">
+            <div className="checkout-summary-row">
+              <span>Item Total</span>
+              <strong>{formatRupees(itemTotal)}</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Delivery Fee</span>
+              <strong>FREE</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Product Savings</span>
+              <strong>-{formatRupees(premiumSavings)}</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Coupon Discount</span>
+              <strong>-{formatRupees(discountAmount)}</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Product Count</span>
+              <strong>{productCount}</strong>
+            </div>
+            <div className="checkout-summary-row checkout-summary-row-total">
+              <span>To Pay</span>
+              <strong>{formatRupees(discountedTotal)}</strong>
+            </div>
+          </div>
+
+          {totalSavings > 0 ? (
+            <p className="muted">Total savings before payment: {formatRupees(totalSavings)}</p>
+          ) : null}
         </div>
-        {couponStatus ? <p className={`status-message ${couponDiscountPercent > 0 ? "success" : "error"}`}>{couponStatus}</p> : null}
-        <button
-          type="button"
-          className="pill pill-primary"
-          onClick={handlePayment}
-          disabled={isSubmitting}
-        >
-          {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
-        </button>
-        {statusMessage ? (
-          <p className={`status-message ${statusType}`}>{statusMessage}</p>
-        ) : null}
-      </form>
+
+        {detailsOpen ? (
+          <form className="checkout-details-card">
+            <label className="field">
+              <span>Full Name</span>
+              <input
+                placeholder="Enter full name"
+                value={form.customerName}
+                onChange={(event) => updateField("customerName", event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Delivery Address</span>
+              <textarea
+                placeholder="House number, street, city, state, pin code"
+                rows={4}
+                value={form.deliveryAddress}
+                onChange={(event) => updateField("deliveryAddress", event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Phone Number</span>
+              <input
+                placeholder="Primary mobile number"
+                value={form.phoneNumber}
+                onChange={(event) => updateField("phoneNumber", event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Email Address</span>
+              <input
+                type="email"
+                placeholder="your@email.com"
+                value={form.email}
+                onChange={(event) => updateField("email", event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Alternative Phone Number</span>
+              <input
+                placeholder="Optional alternate mobile number"
+                value={form.alternatePhoneNumber}
+                onChange={(event) => updateField("alternatePhoneNumber", event.target.value)}
+              />
+            </label>
+            <label className="field">
+              <span>Coupon Code (Optional)</span>
+              <input
+                placeholder="Enter 6-character coupon"
+                value={form.couponCode}
+                onChange={(event) => updateField("couponCode", event.target.value.toUpperCase())}
+                maxLength={6}
+              />
+            </label>
+            <label className="field">
+              <span>Comments or Special Request</span>
+              <textarea
+                placeholder="Any delivery notes or preferences"
+                rows={3}
+                value={form.comments}
+                onChange={(event) => updateField("comments", event.target.value)}
+              />
+            </label>
+            {couponStatus ? (
+              <p className={`status-message ${couponDiscountPercent > 0 ? "success" : "error"}`}>
+                {couponStatus}
+              </p>
+            ) : null}
+            <button
+              type="button"
+              className="pill pill-primary"
+              onClick={handlePayment}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
+            </button>
+            {statusMessage ? <p className={`status-message ${statusType}`}>{statusMessage}</p> : null}
+          </form>
+        ) : (
+          <div className="checkout-collapsed-note">
+            <p>Customer details stay hidden until the shopper opens the form.</p>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

@@ -9,6 +9,7 @@ from app.models.user import User
 from app.repositories.order import OrderRepository
 from app.repositories.product import ProductRepository
 from app.schemas.order import (
+    AdminCustomerPortfolioRead,
     OrderCreateRequest,
     RazorpayFailureRequest,
     RazorpayOrderCreateRequest,
@@ -244,6 +245,32 @@ class OrderService:
     def list_customer_orders(self, user: User) -> list[Order]:
         return self.orders.list_orders_by_email(user.email)
 
+    def list_admin_customer_portfolio(self) -> list[AdminCustomerPortfolioRead]:
+        portfolio: list[AdminCustomerPortfolioRead] = []
+        for order in self.orders.list_orders():
+            product_labels = [
+                f"{item.product_name} ({item.variant_label}) x {item.quantity}" for item in order.items
+            ]
+            portfolio.append(
+                AdminCustomerPortfolioRead(
+                    order_number=order.order_number,
+                    created_at=order.created_at,
+                    customer_name=order.customer_name,
+                    delivery_address=order.delivery_address,
+                    payment_mode="Razorpay",
+                    only_success=self._is_successful_order(order),
+                    amount_count=float(order.total_amount),
+                    products=", ".join(product_labels),
+                    product_quantity=sum(item.quantity for item in order.items),
+                    product_count=len(order.items),
+                    phone_number=order.phone_number,
+                    email=order.email,
+                    status=order.status,
+                    payment_status=order.payment_status,
+                )
+            )
+        return portfolio
+
     @staticmethod
     def _ensure_order_owner(order: Order, user: User) -> None:
         if order.email.lower() != user.email.lower():
@@ -251,6 +278,10 @@ class OrderService:
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="This payment does not belong to the logged-in account.",
             )
+
+    @staticmethod
+    def _is_successful_order(order: Order) -> bool:
+        return order.payment_status == "paid" and order.status != "cancelled"
 
     @staticmethod
     def _build_email_body(order: Order) -> str:

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
@@ -108,3 +109,20 @@ class CustomerOrderRead(BaseModel):
     items: list[OrderItemRead]
 
     model_config = {"from_attributes": True}
+
+
+class AdminCustomerPortfolioRead(BaseModel):
+    order_number: str
+    created_at: datetime
+    customer_name: str
+    delivery_address: str
+    payment_mode: str
+    only_success: bool
+    amount_count: float
+    products: str
+    product_quantity: int
+    product_count: int
+    phone_number: str
+    email: EmailStr
+    status: str
+    payment_status: str
