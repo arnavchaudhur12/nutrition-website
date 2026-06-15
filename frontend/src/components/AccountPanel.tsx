@@ -192,6 +192,19 @@ function formatPortfolioDate(value: string): string {
   }).format(new Date(value));
 }
 
+function normalizeMetrics(metrics: AdminMetrics): AdminMetrics {
+  return {
+    total_actual_sales_count: metrics.total_actual_sales_count ?? 0,
+    total_actual_revenue: metrics.total_actual_revenue ?? 0,
+    cancelled_orders_count: metrics.cancelled_orders_count ?? 0,
+    total_products_sold: metrics.total_products_sold ?? 0,
+    product_performance: Array.isArray(metrics.product_performance)
+      ? metrics.product_performance
+      : [],
+    note: metrics.note ?? ""
+  };
+}
+
 export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: AccountPanelProps) {
   const { user, loginUser, logoutUser } = useAuth();
   const [view, setView] = useState<View>("menu");
@@ -308,7 +321,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
           fetchAdminHero(response.access_token),
           fetchAdminCoupons(response.access_token)
         ]);
-        setMetrics(dashboardMetrics);
+        setMetrics(normalizeMetrics(dashboardMetrics));
         setCustomerPortfolio(portfolio);
         setProducts(catalog);
         setHeroForm(heroToForm(hero));
@@ -388,7 +401,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       setCustomerPortfolio(portfolio);
       setProducts(catalog);
       setHeroForm(heroToForm(hero));
-      setMetrics(dashboardMetrics);
+      setMetrics(normalizeMetrics(dashboardMetrics));
       setCoupons(couponList);
       setEditingProductId(null);
       setProductForm(emptyProductForm());
@@ -429,7 +442,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       fetchAdminProducts(token),
       fetchAdminCoupons(token)
     ]);
-    setMetrics(dashboardMetrics);
+    setMetrics(normalizeMetrics(dashboardMetrics));
     setCustomerPortfolio(portfolio);
     setProducts(catalog);
     setCoupons(couponList);
