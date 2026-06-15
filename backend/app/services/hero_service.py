@@ -17,6 +17,10 @@ class HeroService:
             select(HeroSettings).options(selectinload(HeroSettings.images)).limit(1)
         ).scalar_one_or_none()
         if settings:
+            if self._strip_legacy_default_image(settings):
+                self.db.add(settings)
+                self.db.commit()
+                self.db.refresh(settings)
             return settings
         return self._create_default_settings()
 
@@ -35,6 +39,7 @@ class HeroService:
             [
                 HeroImage(image_url=image_url, sort_order=index)
                 for index, image_url in enumerate(payload.image_urls)
+                if image_url
             ]
         )
         self.db.add(settings)
@@ -55,9 +60,24 @@ class HeroService:
             offer_text="Fresh jars. Strong value. Smooth checkout.",
             badge_title="Lagads Nutrition",
             badge_subtitle="Built for everyday lifestyle",
-            images=[HeroImage(image_url=DEFAULT_HERO_IMAGE, sort_order=0)],
+            images=[],
         )
         self.db.add(settings)
         self.db.commit()
         self.db.refresh(settings)
         return settings
+
+    @staticmethod
+    def _strip_legacy_default_image(settings: HeroSettings) -> bool:
+        legacy_images = [image for image in settings.images if image.image_url == DEFAULT_HERO_IMAGE]
+        if not legacy_images:
+            return False
+
+        non_legacy_images = [image for image in settings.images if image.image_url != DEFAULT_HERO_IMAGE]
+        if non_legacy_images:
+            for legacy_image in legacy_images:
+                settings.images.remove(legacy_image)
+            return True
+
+        settings.images.clear()
+        return True

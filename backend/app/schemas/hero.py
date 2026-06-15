@@ -32,7 +32,7 @@ class HeroSettingsUpdate(BaseModel):
     offer_text: str = Field(min_length=1, max_length=240)
     badge_title: str = Field(min_length=1, max_length=160)
     badge_subtitle: str = Field(min_length=1, max_length=160)
-    image_urls: list[str] = Field(min_length=1, max_length=6)
+    image_urls: list[str] = Field(default_factory=list, max_length=6)
 
     @field_validator(
         "eyebrow_text",
@@ -51,7 +51,4 @@ class HeroSettingsUpdate(BaseModel):
     @field_validator("image_urls")
     @classmethod
     def clean_image_urls(cls, value: list[str]) -> list[str]:
-        cleaned = [item.strip() for item in value if item.strip()]
-        if not cleaned:
-            raise ValueError("At least one hero image is required.")
-        return cleaned[:6]
+        return [item.strip() for item in value][:6]

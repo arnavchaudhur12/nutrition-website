@@ -151,6 +151,13 @@ function buildProductPayload(form: ProductFormState) {
 }
 
 function heroToForm(hero: HeroConfig): HeroFormState {
+  const imageUrls = Array.from({ length: 6 }, () => "");
+  for (const image of hero.images) {
+    if (image.sort_order >= 0 && image.sort_order < imageUrls.length) {
+      imageUrls[image.sort_order] = image.image_url;
+    }
+  }
+
   return {
     eyebrow_text: hero.eyebrow_text,
     headline: hero.headline,
@@ -160,7 +167,7 @@ function heroToForm(hero: HeroConfig): HeroFormState {
     offer_text: hero.offer_text,
     badge_title: hero.badge_title,
     badge_subtitle: hero.badge_subtitle,
-    image_urls: Array.from({ length: 6 }, (_, index) => hero.images[index]?.image_url ?? "")
+    image_urls: imageUrls
   };
 }
 
@@ -174,7 +181,7 @@ function buildHeroPayload(form: HeroFormState): HeroPayload {
     offer_text: form.offer_text,
     badge_title: form.badge_title,
     badge_subtitle: form.badge_subtitle,
-    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 6)
+    image_urls: form.image_urls.map((item) => item.trim()).slice(0, 6)
   };
 }
 
