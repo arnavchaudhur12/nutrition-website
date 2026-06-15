@@ -95,11 +95,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       !form.deliveryAddress ||
       !form.pincode ||
       !form.phoneNumber ||
-      !form.email ||
-      !form.alternatePhoneNumber ||
-      !form.comments
+      !form.email
     ) {
-      return "Please fill all mandatory fields. Only coupon code is optional.";
+      return "Please fill all mandatory fields: name, delivery address, pincode, phone number, and email.";
     }
     if (totalAmount < 1) {
       return "Minimum payment amount is Rs. 1.";
@@ -338,7 +336,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             <label className="field">
               <span>Alternative Phone Number</span>
               <input
-                placeholder="Enter alternate mobile number"
+                placeholder="Optional alternate mobile number"
                 value={form.alternatePhoneNumber}
                 onChange={(event) => updateField("alternatePhoneNumber", event.target.value)}
               />
@@ -355,7 +353,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             <label className="field">
               <span>Comments or Special Request</span>
               <textarea
-                placeholder="Enter delivery notes or request"
+                placeholder="Optional delivery notes or request"
                 rows={3}
                 value={form.comments}
                 onChange={(event) => updateField("comments", event.target.value)}

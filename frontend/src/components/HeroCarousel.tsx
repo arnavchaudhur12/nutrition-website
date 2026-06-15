@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { resolveHeroImageUrl } from "../services/hero";
 import type { HeroConfig } from "../types/hero";
 
@@ -6,9 +7,32 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
     return null;
   }
 
-  const desktopHeroImage =
-    resolveHeroImageUrl(hero.images[0]?.image_url) ?? "/hero-quote-background.jpeg";
-  const mobileHeroImage = resolveHeroImageUrl(hero.images[1]?.image_url) ?? desktopHeroImage;
+  const desktopImages = hero.images
+    .slice(0, 3)
+    .map((image) => resolveHeroImageUrl(image.image_url))
+    .filter((image): image is string => Boolean(image));
+  const mobileImages = hero.images
+    .slice(3, 6)
+    .map((image) => resolveHeroImageUrl(image.image_url))
+    .filter((image): image is string => Boolean(image));
+
+  const fallbackImage = "/hero-quote-background.jpeg";
+  const desktopSlides = desktopImages.length > 0 ? desktopImages : [fallbackImage];
+  const mobileSlides = mobileImages.length > 0 ? mobileImages : desktopSlides;
+  const slideCount = Math.max(desktopSlides.length, mobileSlides.length);
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    setCurrentSlide(0);
+    const timer = window.setInterval(() => {
+      setCurrentSlide((previous) => (previous + 1) % slideCount);
+    }, 2000);
+
+    return () => window.clearInterval(timer);
+  }, [slideCount, hero.images]);
+
+  const desktopHeroImage = desktopSlides[currentSlide % desktopSlides.length] ?? fallbackImage;
+  const mobileHeroImage = mobileSlides[currentSlide % mobileSlides.length] ?? desktopHeroImage;
 
   return (
     <section className="hero">

@@ -99,7 +99,7 @@ const emptyHeroForm = (): HeroFormState => ({
   offer_text: "",
   badge_title: "",
   badge_subtitle: "",
-  image_urls: ["", "", "", "", ""]
+  image_urls: ["", "", "", "", "", ""]
 });
 
 const emptyPortfolioFilters = (): PortfolioFilters => ({
@@ -160,7 +160,7 @@ function heroToForm(hero: HeroConfig): HeroFormState {
     offer_text: hero.offer_text,
     badge_title: hero.badge_title,
     badge_subtitle: hero.badge_subtitle,
-    image_urls: Array.from({ length: 5 }, (_, index) => hero.images[index]?.image_url ?? "")
+    image_urls: Array.from({ length: 6 }, (_, index) => hero.images[index]?.image_url ?? "")
   };
 }
 
@@ -174,7 +174,7 @@ function buildHeroPayload(form: HeroFormState): HeroPayload {
     offer_text: form.offer_text,
     badge_title: form.badge_title,
     badge_subtitle: form.badge_subtitle,
-    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 5)
+    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 6)
   };
 }
 
@@ -531,6 +531,15 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       ...current,
       image_urls: current.image_urls.map((imageUrl, imageIndex) =>
         imageIndex === index ? value : imageUrl
+      )
+    }));
+  };
+
+  const handleRemoveHeroImage = (index: number) => {
+    setHeroForm((current) => ({
+      ...current,
+      image_urls: current.image_urls.map((imageUrl, imageIndex) =>
+        imageIndex === index ? "" : imageUrl
       )
     }));
   };
@@ -1189,16 +1198,14 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   </div>
                   <div className="field">
                     <span>Hero Images</span>
-                    <p className="muted">Use image 1 for the website font image and image 2 for the mobile font image shown on the live homepage.</p>
+                    <p className="muted">Upload 3 website slideshow images and 3 mobile slideshow images. The live homepage rotates them every 2 seconds.</p>
                     <div className="admin-image-grid">
                       {heroForm.image_urls.map((imageUrl, index) => (
                         <div key={`hero-image-${index}`} className="admin-image-slot">
                           <strong>
-                            {index === 0
-                              ? "Website Font Image"
-                              : index === 1
-                                ? "Mobile Font Image"
-                                : `Hero Image ${index + 1}`}
+                            {index <= 2
+                              ? `Website Font Image ${index + 1}`
+                              : `Mobile Font Image ${index - 2}`}
                           </strong>
                           <input
                             type="file"
@@ -1213,6 +1220,14 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                             placeholder="Uploaded hero image URL will appear here"
                             onChange={(event) => handleHeroImageUrlChange(index, event.target.value)}
                           />
+                          <button
+                            type="button"
+                            className="pill pill-muted"
+                            onClick={() => handleRemoveHeroImage(index)}
+                            disabled={!imageUrl.trim()}
+                          >
+                            Remove Image
+                          </button>
                           {uploadingImage ? <span className="muted">Uploading image...</span> : null}
                           {resolveImageUrl(imageUrl) ? (
                             <img

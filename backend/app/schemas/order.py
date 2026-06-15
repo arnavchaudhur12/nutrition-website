@@ -14,10 +14,10 @@ class OrderCreateRequest(BaseModel):
     customer_name: str
     email: EmailStr
     phone_number: str
-    alternate_phone_number: str
+    alternate_phone_number: Optional[str] = None
     delivery_address: str
     pincode: str
-    comments: str
+    comments: Optional[str] = None
     items: list[OrderItemRequest]
 
 
@@ -42,10 +42,8 @@ class RazorpayOrderCreateRequest(BaseModel):
                 "customer_name": self.customer_name,
                 "email": self.email,
                 "phone_number": self.phone_number,
-                "alternate_phone_number": self.alternate_phone_number,
                 "delivery_address": self.delivery_address,
                 "pincode": self.pincode,
-                "comments": self.comments,
             }
             missing_fields = [field for field, value in required_fields.items() if not value]
             if missing_fields:
