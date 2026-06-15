@@ -35,7 +35,6 @@ function formatRupees(amount: number) {
 export function CheckoutSection({ products }: CheckoutSectionProps) {
   const { user } = useAuth();
   const { items, clearCart } = useCart();
-  const [detailsOpen, setDetailsOpen] = useState(false);
   const [form, setForm] = useState(initialFormState);
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
@@ -184,7 +183,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             setCouponDiscountPercent(0);
             setCouponStatus("");
             setForm(initialFormState);
-            setDetailsOpen(false);
             window.alert(
               "Thank you for your purchase from Lagads Nutrition! Please stay on this website for a couple of seconds and do not refresh."
             );
@@ -284,78 +282,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       </div>
 
       <div className="checkout-form">
-        <div className="checkout-order-card">
-          <div className="checkout-order-header">
-            <div>
-              <span className="eyebrow">Order Summary</span>
-              <h3>
-                {itemCount} Item{itemCount === 1 ? "" : "s"}
-              </h3>
-            </div>
-            <button
-              type="button"
-              className="pill"
-              onClick={() => setDetailsOpen((current) => !current)}
-            >
-              {detailsOpen ? "Hide Customer Details" : "Customer Details"}
-            </button>
-          </div>
-
-          <div className="checkout-product-list">
-            {enrichedCart.length === 0 ? (
-              <p className="muted">Add products to the cart to see the payment breakup.</p>
-            ) : (
-              enrichedCart.map((item) => (
-                <article
-                  key={`${item.productId}-${item.variantId}`}
-                  className="checkout-product-row"
-                >
-                  <div>
-                    <strong>{item.product.flavour}</strong>
-                    <p>
-                      {item.variant.weight} x {item.quantity}
-                    </p>
-                  </div>
-                  <strong>{formatRupees(item.variant.sellingPrice * item.quantity)}</strong>
-                </article>
-              ))
-            )}
-          </div>
-
-          <div className="checkout-summary-grid">
-            <div className="checkout-summary-row">
-              <span>Item Total</span>
-              <strong>{formatRupees(itemTotal)}</strong>
-            </div>
-            <div className="checkout-summary-row">
-              <span>Delivery Fee</span>
-              <strong>FREE</strong>
-            </div>
-            <div className="checkout-summary-row">
-              <span>Product Savings</span>
-              <strong>-{formatRupees(premiumSavings)}</strong>
-            </div>
-            <div className="checkout-summary-row">
-              <span>Coupon Discount</span>
-              <strong>-{formatRupees(discountAmount)}</strong>
-            </div>
-            <div className="checkout-summary-row">
-              <span>Product Count</span>
-              <strong>{productCount}</strong>
-            </div>
-            <div className="checkout-summary-row checkout-summary-row-total">
-              <span>To Pay</span>
-              <strong>{formatRupees(discountedTotal)}</strong>
-            </div>
-          </div>
-
-          {totalSavings > 0 ? (
-            <p className="muted">Total savings before payment: {formatRupees(totalSavings)}</p>
-          ) : null}
-        </div>
-
-        {detailsOpen ? (
-          <form className="checkout-details-card">
+        <form className="checkout-details-card">
             <label className="field">
               <span>Full Name</span>
               <input
@@ -421,21 +348,80 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
                 {couponStatus}
               </p>
             ) : null}
-            <button
-              type="button"
-              className="pill pill-primary"
-              onClick={handlePayment}
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
-            </button>
-            {statusMessage ? <p className={`status-message ${statusType}`}>{statusMessage}</p> : null}
           </form>
-        ) : (
-          <div className="checkout-collapsed-note">
-            <p>Customer details stay hidden until the shopper opens the form.</p>
+
+        <div className="checkout-order-card">
+          <div className="checkout-order-header">
+            <div>
+              <span className="eyebrow">Order Summary</span>
+              <h3>
+                {itemCount} Item{itemCount === 1 ? "" : "s"}
+              </h3>
+            </div>
           </div>
-        )}
+
+          <div className="checkout-product-list">
+            {enrichedCart.length === 0 ? (
+              <p className="muted">Add products to the cart to see the payment breakup.</p>
+            ) : (
+              enrichedCart.map((item) => (
+                <article
+                  key={`${item.productId}-${item.variantId}`}
+                  className="checkout-product-row"
+                >
+                  <div>
+                    <strong>{item.product.flavour}</strong>
+                    <p>
+                      {item.variant.weight} x {item.quantity}
+                    </p>
+                  </div>
+                  <strong>{formatRupees(item.variant.sellingPrice * item.quantity)}</strong>
+                </article>
+              ))
+            )}
+          </div>
+
+          <div className="checkout-summary-grid">
+            <div className="checkout-summary-row">
+              <span>Item Total</span>
+              <strong>{formatRupees(itemTotal)}</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Delivery Fee</span>
+              <strong>FREE</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Product Savings</span>
+              <strong>-{formatRupees(premiumSavings)}</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Coupon Discount</span>
+              <strong>-{formatRupees(discountAmount)}</strong>
+            </div>
+            <div className="checkout-summary-row">
+              <span>Product Count</span>
+              <strong>{productCount}</strong>
+            </div>
+            <div className="checkout-summary-row checkout-summary-row-total">
+              <span>To Pay</span>
+              <strong>{formatRupees(discountedTotal)}</strong>
+            </div>
+          </div>
+
+          {totalSavings > 0 ? (
+            <p className="muted">Total savings before payment: {formatRupees(totalSavings)}</p>
+          ) : null}
+
+          <button
+            type="button"
+            className="pill pill-primary"
+            onClick={handlePayment}
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
+          </button>
+          {statusMessage ? <p className={`status-message ${statusType}`}>{statusMessage}</p> : null}
+        </div>
       </div>
     </section>
   );

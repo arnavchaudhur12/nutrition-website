@@ -5,7 +5,6 @@ import type { AdminProduct } from "../types/admin";
 export type AdminMetrics = {
   total_actual_sales_count: number;
   total_actual_revenue: number;
-  cancelled_orders_count: number;
   total_products_sold: number;
   product_performance: Array<{
     product_name: string;
@@ -14,6 +13,12 @@ export type AdminMetrics = {
   }>;
   note: string;
 };
+
+export type AdminDashboardPeriod =
+  | "all_time"
+  | "last_7_days"
+  | "last_30_days"
+  | "last_90_days";
 
 export type AdminCustomerPortfolio = {
   order_number: string;
@@ -39,8 +44,11 @@ export type CouponCode = {
   created_at: string;
 };
 
-export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
-  const response = await fetch(`${API_BASE_URL}/admin/metrics`, {
+export async function fetchAdminMetrics(
+  token: string,
+  period: AdminDashboardPeriod
+): Promise<AdminMetrics> {
+  const response = await fetch(`${API_BASE_URL}/admin/metrics?period=${encodeURIComponent(period)}`, {
     headers: {
       Authorization: `Bearer ${token}`
     }
@@ -55,11 +63,15 @@ export async function fetchAdminMetrics(token: string): Promise<AdminMetrics> {
 }
 
 export async function fetchAdminCustomerPortfolio(
-  token: string
+  token: string,
+  period: AdminDashboardPeriod
 ): Promise<AdminCustomerPortfolio[]> {
-  const response = await fetch(`${API_BASE_URL}/admin/customer-portfolio`, {
+  const response = await fetch(
+    `${API_BASE_URL}/admin/customer-portfolio?period=${encodeURIComponent(period)}`,
+    {
     headers: authHeaders(token)
-  });
+    }
+  );
   return parseJson<AdminCustomerPortfolio[]>(response, "Unable to load customer portfolio.");
 }
 

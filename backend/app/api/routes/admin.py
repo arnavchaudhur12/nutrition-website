@@ -40,10 +40,11 @@ def get_admin_hero(
 
 @router.get("/customer-portfolio", response_model=list[AdminCustomerPortfolioRead])
 def get_customer_portfolio(
+    period: str = "all_time",
     db: Session = Depends(get_db),
     _admin=Depends(get_current_admin),
 ) -> list[AdminCustomerPortfolioRead]:
-    return OrderService(db).list_admin_customer_portfolio()
+    return OrderService(db).list_admin_customer_portfolio(period)
 
 
 @router.put("/hero", response_model=HeroSettingsRead)

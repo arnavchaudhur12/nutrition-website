@@ -526,8 +526,7 @@ main {
 }
 
 .checkout-order-card,
-.checkout-details-card,
-.checkout-collapsed-note {
+.checkout-details-card {
   display: grid;
   gap: 1rem;
   padding: 1.1rem;
@@ -925,6 +924,24 @@ main {
   flex-wrap: wrap;
   gap: 0.7rem;
   margin-top: 0.5rem;
+}
+
+.admin-period-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 0.35rem;
+}
+
+.admin-period-filter span {
+  font-weight: 700;
+}
+
+.admin-period-filter select {
+  padding: 0.7rem 0.9rem;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #fffdf9;
 }
 
 .metrics-grid {

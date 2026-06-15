@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from uuid import uuid4
 from typing import Optional
 
@@ -245,9 +246,11 @@ class OrderService:
     def list_customer_orders(self, user: User) -> list[Order]:
         return self.orders.list_orders_by_email(user.email)
 
-    def list_admin_customer_portfolio(self) -> list[AdminCustomerPortfolioRead]:
+    def list_admin_customer_portfolio(self, period: str = "all_time") -> list[AdminCustomerPortfolioRead]:
         portfolio: list[AdminCustomerPortfolioRead] = []
         for order in self.orders.list_orders():
+            if not self._is_successful_order(order) or not self._matches_period(order.created_at, period):
+                continue
             product_labels = [
                 f"{item.product_name} ({item.variant_label}) x {item.quantity}" for item in order.items
             ]
@@ -282,6 +285,22 @@ class OrderService:
     @staticmethod
     def _is_successful_order(order: Order) -> bool:
         return order.payment_status == "paid" and order.status != "cancelled"
+
+    @staticmethod
+    def _matches_period(created_at: datetime, period: str) -> bool:
+        if period == "all_time":
+            return True
+
+        now = datetime.utcnow()
+        ranges = {
+            "last_7_days": now - timedelta(days=7),
+            "last_30_days": now - timedelta(days=30),
+            "last_90_days": now - timedelta(days=90),
+        }
+        threshold = ranges.get(period)
+        if threshold is None:
+            return True
+        return created_at >= threshold
 
     @staticmethod
     def _build_email_body(order: Order) -> str:

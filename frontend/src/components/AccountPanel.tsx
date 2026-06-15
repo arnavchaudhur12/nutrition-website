@@ -12,6 +12,7 @@ import {
   fetchAdminMetrics,
   fetchAdminProducts,
   resolveImageUrl,
+  type AdminDashboardPeriod,
   type AdminCustomerPortfolio,
   type AdminMetrics,
   type CouponCode,
@@ -66,7 +67,6 @@ type PortfolioFilters = {
   customer_name: string;
   delivery_address: string;
   payment_mode: string;
-  only_success: string;
   amount_count: string;
   products: string;
   product_quantity: string;
@@ -105,7 +105,6 @@ const emptyPortfolioFilters = (): PortfolioFilters => ({
   customer_name: "",
   delivery_address: "",
   payment_mode: "",
-  only_success: "",
   amount_count: "",
   products: "",
   product_quantity: "",
@@ -196,7 +195,6 @@ function normalizeMetrics(metrics: AdminMetrics): AdminMetrics {
   return {
     total_actual_sales_count: metrics.total_actual_sales_count ?? 0,
     total_actual_revenue: metrics.total_actual_revenue ?? 0,
-    cancelled_orders_count: metrics.cancelled_orders_count ?? 0,
     total_products_sold: metrics.total_products_sold ?? 0,
     product_performance: Array.isArray(metrics.product_performance)
       ? metrics.product_performance
@@ -212,6 +210,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<AdminMetrics | null>(null);
+  const [selectedPeriod, setSelectedPeriod] = useState<AdminDashboardPeriod>("all_time");
   const [customerPortfolio, setCustomerPortfolio] = useState<AdminCustomerPortfolio[]>([]);
   const [portfolioFilters, setPortfolioFilters] = useState<PortfolioFilters>(
     emptyPortfolioFilters()
@@ -257,13 +256,6 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       }
       if (portfolioFilters.payment_mode && !matchesText(row.payment_mode, portfolioFilters.payment_mode)) {
         return false;
-      }
-      if (portfolioFilters.only_success) {
-        const expected = portfolioFilters.only_success.toLowerCase();
-        const actual = row.only_success ? "success" : "failed";
-        if (!actual.includes(expected)) {
-          return false;
-        }
       }
       if (portfolioFilters.amount_count && !String(row.amount_count).includes(portfolioFilters.amount_count.trim())) {
         return false;
@@ -312,15 +304,17 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
       localStorage.setItem("lagads-user-token", response.access_token);
       const currentUser = await fetchCurrentUser(response.access_token);
       loginUser(buildAuthUser(currentUser.email, currentUser.full_name, currentUser.is_admin));
+      const period: AdminDashboardPeriod = "all_time";
       if (currentUser.is_admin) {
         localStorage.setItem("lagads-admin-token", response.access_token);
         const [dashboardMetrics, portfolio, catalog, hero, couponList] = await Promise.all([
-          fetchAdminMetrics(response.access_token),
-          fetchAdminCustomerPortfolio(response.access_token),
+          fetchAdminMetrics(response.access_token, period),
+          fetchAdminCustomerPortfolio(response.access_token, period),
           fetchAdminProducts(response.access_token),
           fetchAdminHero(response.access_token),
           fetchAdminCoupons(response.access_token)
         ]);
+        setSelectedPeriod(period);
         setMetrics(normalizeMetrics(dashboardMetrics));
         setCustomerPortfolio(portfolio);
         setProducts(catalog);
@@ -392,8 +386,8 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
 
     try {
       const [dashboardMetrics, portfolio, catalog, hero, couponList] = await Promise.all([
-        fetchAdminMetrics(token),
-        fetchAdminCustomerPortfolio(token),
+        fetchAdminMetrics(token, selectedPeriod),
+        fetchAdminCustomerPortfolio(token, selectedPeriod),
         fetchAdminProducts(token),
         fetchAdminHero(token),
         fetchAdminCoupons(token)
@@ -437,8 +431,8 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
 
   const refreshAdminCatalog = async (token: string) => {
     const [dashboardMetrics, portfolio, catalog, couponList] = await Promise.all([
-      fetchAdminMetrics(token),
-      fetchAdminCustomerPortfolio(token),
+      fetchAdminMetrics(token, selectedPeriod),
+      fetchAdminCustomerPortfolio(token, selectedPeriod),
       fetchAdminProducts(token),
       fetchAdminCoupons(token)
     ]);
@@ -450,6 +444,30 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
 
   const handlePortfolioFilterChange = (key: keyof PortfolioFilters, value: string) => {
     setPortfolioFilters((current) => ({ ...current, [key]: value }));
+  };
+
+  const handlePeriodChange = async (period: AdminDashboardPeriod) => {
+    const token = localStorage.getItem("lagads-admin-token");
+    if (!token) {
+      setError("Admin token missing. Please log in again.");
+      return;
+    }
+
+    resetFeedback();
+    setLoading(true);
+    try {
+      const [dashboardMetrics, portfolio] = await Promise.all([
+        fetchAdminMetrics(token, period),
+        fetchAdminCustomerPortfolio(token, period)
+      ]);
+      setSelectedPeriod(period);
+      setMetrics(normalizeMetrics(dashboardMetrics));
+      setCustomerPortfolio(portfolio);
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Unable to update date filter.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleEditProduct = (product: AdminProduct) => {
@@ -878,6 +896,18 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                 <a href="#admin-hero" className="pill">Hero Images</a>
                 <a href="#admin-products" className="pill">Products</a>
               </div>
+              <div className="admin-period-filter">
+                <span>Date Range</span>
+                <select
+                  value={selectedPeriod}
+                  onChange={(event) => handlePeriodChange(event.target.value as AdminDashboardPeriod)}
+                >
+                  <option value="last_7_days">Last 7 Days</option>
+                  <option value="last_30_days">Last 30 Days</option>
+                  <option value="last_90_days">Last 90 Days</option>
+                  <option value="all_time">All Time</option>
+                </select>
+              </div>
               <div className="admin-metrics">
                 <h3>Sales Snapshot</h3>
                 <div className="metrics-grid">
@@ -892,10 +922,6 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   <div className="metric-card">
                     <span>Total Product Quantity Sold</span>
                     <strong>{metrics.total_products_sold}</strong>
-                  </div>
-                  <div className="metric-card">
-                    <span>Cancelled / Unsuccessful Orders</span>
-                    <strong>{metrics.cancelled_orders_count}</strong>
                   </div>
                 </div>
                 <p className="muted">{metrics.note}</p>
@@ -961,13 +987,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                           <th><input value={portfolioFilters.customer_name} onChange={(event) => handlePortfolioFilterChange("customer_name", event.target.value)} placeholder="Filter" /></th>
                           <th><input value={portfolioFilters.delivery_address} onChange={(event) => handlePortfolioFilterChange("delivery_address", event.target.value)} placeholder="Filter" /></th>
                           <th><input value={portfolioFilters.payment_mode} onChange={(event) => handlePortfolioFilterChange("payment_mode", event.target.value)} placeholder="Filter" /></th>
-                          <th>
-                            <select value={portfolioFilters.only_success} onChange={(event) => handlePortfolioFilterChange("only_success", event.target.value)}>
-                              <option value="">All</option>
-                              <option value="success">Success</option>
-                              <option value="failed">Failed</option>
-                            </select>
-                          </th>
+                          <th><input value="Success" readOnly /></th>
                           <th><input value={portfolioFilters.amount_count} onChange={(event) => handlePortfolioFilterChange("amount_count", event.target.value)} placeholder="Filter" /></th>
                           <th><input value={portfolioFilters.products} onChange={(event) => handlePortfolioFilterChange("products", event.target.value)} placeholder="Filter" /></th>
                           <th><input value={portfolioFilters.product_quantity} onChange={(event) => handlePortfolioFilterChange("product_quantity", event.target.value)} placeholder="Filter" /></th>
