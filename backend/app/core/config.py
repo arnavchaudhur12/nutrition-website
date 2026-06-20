@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Literal
 
 from pydantic import Field
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -50,6 +51,17 @@ class Settings(BaseSettings):
     google_sheet_worksheet: str = ""
     google_service_account_file: str = ""
     order_number_start: int = 13
+
+    @model_validator(mode="after")
+    def normalize_sqlite_database_url(self) -> "Settings":
+        sqlite_prefix = "sqlite:///"
+        if self.database_url.startswith(sqlite_prefix):
+            raw_path = self.database_url[len(sqlite_prefix):]
+            if raw_path.startswith("/"):
+                return self
+            normalized_path = (BACKEND_ROOT / raw_path).resolve()
+            self.database_url = f"{sqlite_prefix}{normalized_path}"
+        return self
 
 
 @lru_cache
