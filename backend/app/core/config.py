@@ -49,6 +49,7 @@ class Settings(BaseSettings):
     google_sheet_id: str = ""
     google_sheet_worksheet: str = ""
     google_service_account_file: str = ""
+    order_number_start: int = 13
 
 
 @lru_cache

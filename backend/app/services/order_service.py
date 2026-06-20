@@ -6,6 +6,7 @@ from typing import Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.models.order import Order, OrderItem
 from app.models.user import User
 from app.repositories.order import OrderRepository
@@ -24,8 +25,12 @@ from app.services.coupon_service import CouponService
 
 
 class OrderService:
+    GST_RATE = 0.05
+    FIXED_HSN_CODE = "21069099"
+
     def __init__(self, db: Session):
         self.db = db
+        self.settings = get_settings()
         self.orders = OrderRepository(db)
         self.products = ProductRepository(db)
         self.payment_service = PaymentService()
@@ -47,7 +52,7 @@ class OrderService:
             buyer_email=payload.email,
             subject=f"Order confirmation for {order.order_number}",
             html_body=self._build_email_body(order),
-            attachments=[self._build_invoice_attachment(order)],
+            attachments=[self.build_invoice_attachment(order)],
         )
 
         return {
@@ -243,6 +248,8 @@ class OrderService:
         razorpay_order_id: str,
         should_send_confirmation: bool,
     ) -> None:
+        if order.payment_status != "paid":
+            self._decrement_inventory_for_order(order)
         order.status = "confirmed"
         order.payment_status = "paid"
         if razorpay_order_id:
@@ -256,7 +263,7 @@ class OrderService:
                 buyer_email=order.email,
                 subject=f"Order confirmation for {order.order_number}",
                 html_body=self._build_email_body(order),
-                attachments=[self._build_invoice_attachment(order)],
+                attachments=[self.build_invoice_attachment(order)],
             )
 
     def _build_order(self, payload: OrderCreateRequest) -> Order:
@@ -286,21 +293,37 @@ class OrderService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail=f"Variant not found for product: {item.product_slug}",
                 )
+            if int(variant.stock_quantity) <= 0:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"{self._build_product_display_name(product.name, product.flavour)} ({variant.weight_label}) is out of stock.",
+                )
+            if item.quantity > int(variant.stock_quantity):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=(
+                        f"Only {int(variant.stock_quantity)} item(s) left for "
+                        f"{self._build_product_display_name(product.name, product.flavour)} ({variant.weight_label})."
+                    ),
+                )
 
             line_total = float(variant.selling_price) * item.quantity
             total_amount += line_total
             order_items.append(
                 OrderItem(
+                    product_slug=product.slug,
+                    variant_id=variant.id,
                     product_name=product.name,
                     flavour=product.flavour,
                     variant_label=variant.weight_label,
+                    mrp=float(variant.mrp),
                     unit_price=float(variant.selling_price),
                     quantity=item.quantity,
                     line_total=line_total,
                 )
             )
 
-        order_number = f"LN-{uuid4().hex[:10].upper()}"
+        order_number = self._generate_order_number()
         return Order(
             order_number=order_number,
             total_amount=total_amount,
@@ -417,18 +440,161 @@ class OrderService:
             return True
         return created_at >= threshold
 
+    def _generate_order_number(self) -> str:
+        sequence = self.orders.get_next_order_sequence(self.settings.order_number_start)
+        return f"LN-{sequence:06d}"
+
+    def _decrement_inventory_for_order(self, order: Order) -> None:
+        for item in order.items:
+            if not item.product_slug or item.variant_id is None:
+                continue
+            product = self.products.get_by_slug(item.product_slug)
+            if not product:
+                continue
+            variant = next((candidate for candidate in product.variants if candidate.id == item.variant_id), None)
+            if not variant:
+                continue
+            if int(variant.stock_quantity) < item.quantity:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=(
+                        f"Inventory changed before payment confirmation for "
+                        f"{self._build_product_display_name(product.name, product.flavour)} ({variant.weight_label})."
+                    ),
+                )
+            variant.stock_quantity = int(variant.stock_quantity) - item.quantity
+            self.db.add(variant)
+
     @staticmethod
-    def _build_email_body(order: Order) -> str:
+    def _build_product_display_name(name: str, flavour: str) -> str:
+        name_clean = name.strip()
+        flavour_clean = flavour.strip()
+        if not flavour_clean:
+            return name_clean
+        if flavour_clean.lower() in name_clean.lower():
+            return name_clean
+        return f"{name_clean} - {flavour_clean}"
+
+    @classmethod
+    def _get_item_display_name(cls, item: OrderItem) -> str:
+        return cls._build_product_display_name(item.product_name, item.flavour)
+
+    @classmethod
+    def _format_currency(cls, amount: float) -> str:
+        return f"Rs. {amount:.2f}"
+
+    @classmethod
+    def _calculate_discount_percent(cls, mrp: float, selling_price: float) -> int:
+        if mrp <= 0 or selling_price >= mrp:
+            return 0
+        return int(round(((mrp - selling_price) / mrp) * 100))
+
+    @classmethod
+    def _amount_in_words(cls, amount: float) -> str:
+        number = int(round(amount))
+        if number == 0:
+            return "Rupees Zero Only"
+
+        ones = [
+            "",
+            "One",
+            "Two",
+            "Three",
+            "Four",
+            "Five",
+            "Six",
+            "Seven",
+            "Eight",
+            "Nine",
+            "Ten",
+            "Eleven",
+            "Twelve",
+            "Thirteen",
+            "Fourteen",
+            "Fifteen",
+            "Sixteen",
+            "Seventeen",
+            "Eighteen",
+            "Nineteen",
+        ]
+        tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"]
+
+        def below_thousand(value: int) -> str:
+            words: list[str] = []
+            if value >= 100:
+                words.append(f"{ones[value // 100]} Hundred")
+                value %= 100
+            if value >= 20:
+                words.append(tens[value // 10])
+                if value % 10:
+                    words.append(ones[value % 10])
+            elif value > 0:
+                words.append(ones[value])
+            return " ".join(part for part in words if part)
+
+        parts: list[str] = []
+        for divisor, label in ((10000000, "Crore"), (100000, "Lakh"), (1000, "Thousand")):
+            chunk = number // divisor
+            if chunk:
+                parts.append(f"{below_thousand(chunk)} {label}")
+                number %= divisor
+        if number:
+            parts.append(below_thousand(number))
+        return f"Rupees {' '.join(parts).strip()} Only"
+
+    @classmethod
+    def _wrap_text(cls, value: str, max_chars: int) -> list[str]:
+        words = " ".join(value.split()).split(" ")
+        lines: list[str] = []
+        current = ""
+        for word in words:
+            candidate = word if not current else f"{current} {word}"
+            if len(candidate) <= max_chars:
+                current = candidate
+            else:
+                if current:
+                    lines.append(current)
+                current = word
+        if current:
+            lines.append(current)
+        return lines or [""]
+
+    @classmethod
+    def _build_invoice_rows(cls, order: Order) -> list[dict[str, object]]:
+        rows: list[dict[str, object]] = []
+        for item in order.items:
+            mrp = float(item.mrp or item.unit_price)
+            unit_price = float(item.unit_price)
+            discount_per_unit = max(0.0, mrp - unit_price)
+            rows.append(
+                {
+                    "name_lines": cls._wrap_text(cls._get_item_display_name(item), 34),
+                    "hsn": cls.FIXED_HSN_CODE,
+                    "qty": item.quantity,
+                    "mrp": mrp,
+                    "discount": discount_per_unit * item.quantity,
+                    "selling_price": float(item.line_total),
+                }
+            )
+        return rows
+
+    @classmethod
+    def _build_email_body(cls, order: Order, invoice_number_override: Optional[str] = None) -> str:
         created_date = order.created_at.strftime("%d-%m-%Y") if order.created_at else ""
         subtotal = float(order.total_amount)
+        invoice_number = cls._resolve_invoice_number(order, invoice_number_override)
+        taxable_value = round(subtotal / (1 + cls.GST_RATE), 2)
+        gst_amount = round(subtotal - taxable_value, 2)
         rows = "".join(
             [
                 (
                     f"<tr>"
-                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;'>{item.product_name}</td>"
-                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;'>{item.flavour}</td>"
+                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;'>{cls._get_item_display_name(item)}</td>"
+                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;'>{cls.FIXED_HSN_CODE}</td>"
                     f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;text-align:center;'>{item.quantity}</td>"
-                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;text-align:right;'>Rs. {float(item.line_total):.2f}</td>"
+                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;text-align:right;'>{cls._format_currency(float(item.mrp or item.unit_price))}</td>"
+                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;text-align:right;'>{cls._format_currency(max(0.0, float(item.mrp or item.unit_price) - float(item.unit_price)) * item.quantity)}</td>"
+                    f"<td style='padding:11px;border-bottom:1px solid #e6e7ef;text-align:right;'>{cls._format_currency(float(item.line_total))}</td>"
                     f"</tr>"
                 )
                 for item in order.items
@@ -443,13 +609,11 @@ class OrderService:
             f"<tr>"
             f"<td style='vertical-align:top;padding-right:12px;'>"
             f"<h2 style='margin:0 0 8px;font-size:24px;color:#151515;'>Lagad's Nutrition</h2>"
-            f"<p style='margin:0 0 6px;'>Email: customercare@lagadsnutrition.in</p>"
             f"<p style='margin:0 0 6px;'>GSTIN: 26BKLPL8910L1ZL</p>"
-            f"<p style='margin:0;'>State: Maharashtra</p>"
             f"</td>"
             f"<td style='vertical-align:top;text-align:right;'>"
-            f"<p style='margin:0 0 6px;'><strong>Invoice No:</strong> {order.order_number}</p>"
-            f"<p style='margin:0;'><strong>Date:</strong> {created_date}</p>"
+            f"<p style='margin:0 0 6px;'><strong>Invoice No:</strong> {invoice_number}</p>"
+            f"<p style='margin:0;'><strong>Invoice Date:</strong> {created_date}</p>"
             f"</td>"
             f"</tr>"
             f"</table>"
@@ -457,48 +621,59 @@ class OrderService:
             f"<tr>"
             f"<td style='vertical-align:top;padding-right:12px;'>"
             f"<p style='margin:0 0 8px;font-size:20px;font-weight:700;color:#1f1f57;'>Bill To</p>"
-            f"<p style='margin:0 0 6px;'><strong>{order.customer_name}</strong></p>"
-            f"<p style='margin:0 0 6px;'>Contact No.: {order.phone_number}</p>"
-            f"<p style='margin:0;'>Address: {order.delivery_address}</p>"
+            f"<p style='margin:0 0 6px;'><strong>Customer Name:</strong> {order.customer_name}</p>"
+            f"<p style='margin:0 0 6px;'><strong>Mobile:</strong> {order.phone_number}</p>"
+            f"<p style='margin:0 0 6px;'><strong>Address:</strong> {order.delivery_address}</p>"
+            f"<p style='margin:0 0 6px;'><strong>PIN Code:</strong> {order.pincode}</p>"
+            f"<p style='margin:0;'><strong>Email:</strong> {order.email}</p>"
             f"</td>"
             f"<td style='vertical-align:top;text-align:right;'>"
             f"<p style='margin:0 0 8px;font-size:20px;font-weight:700;color:#1f1f57;'>Payment Status</p>"
             f"<p style='margin:0 0 6px;'>Paid via Razorpay</p>"
-            f"<p style='margin:0;'>Email: {order.email}</p>"
+            f"<p style='margin:0;'>Delivery Charges: FREE</p>"
             f"</td>"
             f"</tr>"
             f"</table>"
             f"<table style='width:100%;border-collapse:collapse;border:1px solid #e6e7ef;margin-top:8px;'>"
             f"<thead style='background:#8f87e4;color:#ffffff;'>"
-            f"<tr><th style='padding:12px;text-align:left;'>Item Name</th>"
-            f"<th style='padding:12px;text-align:left;'>Flavour</th>"
+            f"<tr><th style='padding:12px;text-align:left;'>Product</th>"
+            f"<th style='padding:12px;text-align:left;'>HSN Code</th>"
             f"<th style='padding:12px;text-align:center;'>Qty</th>"
-            f"<th style='padding:12px;text-align:right;'>Amount</th></tr></thead>"
+            f"<th style='padding:12px;text-align:right;'>MRP</th>"
+            f"<th style='padding:12px;text-align:right;'>Discount</th>"
+            f"<th style='padding:12px;text-align:right;'>Selling Price (Incl. GST)</th></tr></thead>"
             f"<tbody>{rows}</tbody>"
             f"<tfoot>"
-            f"<tr><td colspan='2' style='padding:12px;font-weight:700;'>Total</td>"
+            f"<tr><td colspan='2' style='padding:12px;font-weight:700;'>Grand Total</td>"
             f"<td style='padding:12px;text-align:center;font-weight:700;'>{sum(item.quantity for item in order.items)}</td>"
-            f"<td style='padding:12px;text-align:right;font-weight:700;'>Rs. {subtotal:.2f}</td></tr>"
+            f"<td colspan='3' style='padding:12px;text-align:right;font-weight:700;'>{cls._format_currency(subtotal)}</td></tr>"
             f"</tfoot></table>"
-            f"<table style='width:100%;border-collapse:collapse;margin-top:18px;'>"
-            f"<tr>"
-            f"<td style='vertical-align:top;padding-right:12px;'>"
-            f"<p style='margin:0 0 8px;font-size:18px;font-weight:700;color:#1f1f57;'>Terms & Conditions</p>"
-            f"<p style='margin:0;'>Thank you for doing business with us.</p>"
-            f"</td>"
-            f"<td style='vertical-align:top;text-align:right;min-width:260px;'>"
-            f"<table style='width:100%;border-collapse:collapse;border:1px solid #e6e7ef;'>"
-            f"<tr><td style='padding:10px;'>Sub Total</td>"
-            f"<td style='padding:10px;text-align:right;'>Rs. {subtotal:.2f}</td></tr>"
-            f"<tr style='background:#8f87e4;color:#fff;font-weight:700;'><td style='padding:10px;'>Total</td>"
-            f"<td style='padding:10px;text-align:right;'>Rs. {subtotal:.2f}</td></tr>"
+            f"<table style='width:100%;border-collapse:collapse;margin-top:18px;border:1px solid #e6e7ef;'>"
+            f"<tr><td style='padding:10px;font-weight:700;'>Taxable Value</td><td style='padding:10px;text-align:right;'>{cls._format_currency(taxable_value)}</td></tr>"
+            f"<tr><td style='padding:10px;font-weight:700;'>GST @ 5%</td><td style='padding:10px;text-align:right;'>{cls._format_currency(gst_amount)}</td></tr>"
+            f"<tr style='background:#8f87e4;color:#fff;font-weight:700;'><td style='padding:10px;'>Grand Total</td><td style='padding:10px;text-align:right;'>{cls._format_currency(subtotal)}</td></tr>"
             f"</table>"
-            f"</td>"
-            f"</tr>"
-            f"</table>"
+            f"<p style='margin:18px 0 0;'><strong>Amount in Words:</strong> {cls._amount_in_words(subtotal)}</p>"
+            f"<p style='margin:18px 0 0;font-weight:700;'>Payment Details</p>"
+            f"<p style='margin:0 0 6px;'>Payment Mode: Razorpay / UPI / Card</p>"
+            f"<p style='margin:0 0 6px;'>Payment Status: Paid</p>"
+            f"<p style='margin:0 0 6px;'>Received: {cls._format_currency(subtotal)}</p>"
+            f"<p style='margin:0 0 6px;'>Balance: {cls._format_currency(0.0)}</p>"
+            f"<p style='margin:18px 0 6px;font-weight:700;'>Declaration</p>"
+            f"<p style='margin:0 0 4px;'>Prices are inclusive of GST.</p>"
+            f"<p style='margin:0 0 4px;'>Free delivery.</p>"
+            f"<p style='margin:0;'>This is a computer-generated invoice and does not require a signature.</p>"
             f"<p style='margin:22px 0 0;color:#4b5563;'>A PDF invoice is attached for your records.</p>"
             f"</div>"
         )
+
+    @classmethod
+    def build_invoice_email_body(
+        cls,
+        order: Order,
+        invoice_number_override: Optional[str] = None,
+    ) -> str:
+        return cls._build_email_body(order, invoice_number_override)
 
     @staticmethod
     def _build_payment_failure_email_body(order: Order, reason: str) -> str:
@@ -511,22 +686,35 @@ class OrderService:
             f"<p style='margin:0 0 8px;'><strong>Customer:</strong> {order.customer_name}</p>"
             f"<p style='margin:0 0 8px;'><strong>Email:</strong> {order.email}</p>"
             f"<p style='margin:0 0 8px;'><strong>Phone:</strong> {order.phone_number}</p>"
-            f"<p style='margin:0;'><strong>Delivery Address:</strong> {order.delivery_address}</p>"
+            f"<p style='margin:0 0 8px;'><strong>Delivery Address:</strong> {order.delivery_address}</p>"
+            f"<p style='margin:0;'><strong>PIN Code:</strong> {order.pincode}</p>"
             f"</div>"
             f"<p>You can retry the payment from the website if needed.</p>"
             f"</div>"
         )
 
     @classmethod
-    def _build_invoice_attachment(cls, order: Order) -> tuple[str, bytes, str, str]:
-        filename = f"invoice-{order.order_number}.pdf"
-        return (filename, cls._render_invoice_pdf(order), "application", "pdf")
+    def _resolve_invoice_number(cls, order: Order, invoice_number_override: Optional[str] = None) -> str:
+        return invoice_number_override or order.order_number
 
     @classmethod
-    def _render_invoice_pdf(cls, order: Order) -> bytes:
+    def build_invoice_attachment(
+        cls,
+        order: Order,
+        invoice_number_override: Optional[str] = None,
+    ) -> tuple[str, bytes, str, str]:
+        invoice_number = cls._resolve_invoice_number(order, invoice_number_override)
+        filename = f"invoice-{invoice_number}.pdf"
+        return (filename, cls._render_invoice_pdf(order, invoice_number_override), "application", "pdf")
+
+    @classmethod
+    def _render_invoice_pdf(cls, order: Order, invoice_number_override: Optional[str] = None) -> bytes:
         total_amount = float(order.total_amount)
-        invoice_date = order.created_at.strftime("%d-%m-%Y") if order.created_at else ""
-        total_quantity = sum(item.quantity for item in order.items)
+        invoice_date = order.created_at.strftime("%d/%m/%Y") if order.created_at else ""
+        invoice_number = cls._resolve_invoice_number(order, invoice_number_override)
+        taxable_value = round(total_amount / (1 + cls.GST_RATE), 2)
+        gst_amount = round(total_amount - taxable_value, 2)
+        rows = cls._build_invoice_rows(order)
 
         def text(x: int, y: int, value: str, size: int = 11, bold: bool = False) -> str:
             font = "F2" if bold else "F1"
@@ -536,78 +724,110 @@ class OrderService:
             op = "f" if fill else "S"
             return f"q {rgb[0]} {rgb[1]} {rgb[2]} rg {x} {y} {w} {h} re {op} Q"
 
-        def line(x1: int, y1: int, x2: int, y2: int, width: float = 1.0) -> str:
-            return f"q {width} w {x1} {y1} m {x2} {y2} l S Q"
+        def stroke_rect(x: int, y: int, w: int, h: int, line_width: float = 1.0) -> str:
+            return f"q {line_width} w {x} {y} {w} {h} re S Q"
 
         ops: list[str] = []
-        ops.append(rect(18, 20, 559, 802, (0.996, 0.996, 1.0), True))
+        ops.append(rect(18, 20, 559, 802, (1, 1, 1), True))
+        ops.append(text(30, 804, "LAGAD'S NUTRITION", 18, True))
+        ops.append(text(30, 780, "TAX INVOICE", 16, True))
+        ops.append(text(30, 758, "GSTIN: 26BKLPL8910L1ZL", 11, True))
+        ops.append(text(380, 758, f"Invoice No.: {invoice_number}", 11, True))
+        ops.append(text(380, 740, f"Invoice Date: {invoice_date}", 11, True))
 
-        ops.append(text(30, 792, "Lagad's Nutrition", 20, True))
-        ops.append(text(30, 770, "Email: customercare@lagadsnutrition.in", 11))
-        ops.append(text(30, 752, "GSTIN: 26BKLPL8910L1ZL", 11))
-        ops.append(text(30, 734, "State: Maharashtra", 11))
-        ops.append(line(28, 704, 566, 704, 1))
+        ops.append(text(30, 714, "Bill To", 13, True))
+        bill_to_lines = [
+            f"Customer Name: {order.customer_name}",
+            f"Mobile: {order.phone_number}",
+            f"Address: {order.delivery_address}",
+            f"PIN Code: {order.pincode}",
+            f"Email: {order.email}",
+        ]
+        bill_y = 694
+        for line_value in bill_to_lines:
+            for wrapped_line in cls._wrap_text(line_value, 68):
+                ops.append(text(30, bill_y, wrapped_line, 10))
+                bill_y -= 16
 
-        ops.append(text(248, 676, "Tax Invoice", 24, True))
+        table_top = bill_y - 8
+        column_x = {"product": 32, "hsn": 280, "qty": 360, "mrp": 400, "discount": 462, "selling": 528}
+        row_right = 565
+        header_height = 28
+        ops.append(rect(30, table_top - header_height, 535, header_height, (0.92, 0.92, 0.92), True))
+        ops.append(stroke_rect(30, table_top - header_height, 535, header_height))
+        ops.append(text(column_x["product"], table_top - 18, "Product", 10, True))
+        ops.append(text(column_x["hsn"], table_top - 18, "HSN Code", 10, True))
+        ops.append(text(column_x["qty"], table_top - 18, "Qty", 10, True))
+        ops.append(text(column_x["mrp"], table_top - 18, "MRP", 10, True))
+        ops.append(text(column_x["discount"], table_top - 18, "Discount", 10, True))
+        ops.append(text(column_x["selling"], table_top - 18, "Selling", 10, True))
 
-        ops.append(text(30, 648, "Bill To", 13, True))
-        ops.append(text(30, 626, order.customer_name, 11, True))
-        ops.append(text(30, 606, f"Contact No.: {order.phone_number}", 11))
-        ops.append(text(30, 588, f"Email: {order.email}", 11))
-        ops.append(text(30, 570, f"Address: {order.delivery_address}", 11))
+        current_top = table_top - header_height
+        for row in rows[:8]:
+            name_lines = row["name_lines"]
+            assert isinstance(name_lines, list)
+            row_height = max(26, 14 + (len(name_lines) * 14))
+            current_bottom = current_top - row_height
+            ops.append(stroke_rect(30, current_bottom, 535, row_height, 0.8))
+            text_y = current_top - 16
+            for name_line in name_lines:
+                ops.append(text(column_x["product"], text_y, str(name_line), 9, True))
+                text_y -= 12
+            ops.append(text(column_x["hsn"], current_top - 16, str(row["hsn"]), 9))
+            ops.append(text(column_x["qty"], current_top - 16, str(row["qty"]), 9))
+            ops.append(text(column_x["mrp"], current_top - 16, cls._format_currency(float(row["mrp"])), 9))
+            ops.append(text(column_x["discount"], current_top - 16, cls._format_currency(float(row["discount"])), 9))
+            ops.append(text(column_x["selling"], current_top - 16, cls._format_currency(float(row["selling_price"])), 9))
+            current_top = current_bottom
 
-        ops.append(text(470, 648, "Invoice Details", 13, True))
-        ops.append(text(460, 626, f"Invoice No.: {order.order_number}", 11))
-        ops.append(text(460, 606, f"Date: {invoice_date}", 11))
+        gst_top = current_top - 26
+        ops.append(text(30, gst_top, "GST Calculation", 12, True))
+        gst_box_top = gst_top - 14
+        ops.append(stroke_rect(30, gst_box_top - 84, 250, 84))
+        ops.append(text(38, gst_box_top - 18, "Taxable Value", 10, True))
+        ops.append(text(180, gst_box_top - 18, cls._format_currency(taxable_value), 10))
+        ops.append(text(38, gst_box_top - 42, "GST @ 5%", 10, True))
+        ops.append(text(180, gst_box_top - 42, cls._format_currency(gst_amount), 10))
+        ops.append(text(38, gst_box_top - 66, "Total (Inclusive of GST)", 10, True))
+        ops.append(text(180, gst_box_top - 66, cls._format_currency(total_amount), 10))
 
-        header_y = 544
-        ops.append(line(28, header_y + 28, 566, header_y + 28))
-        ops.append(line(28, header_y, 566, header_y))
-        ops.append(text(34, header_y + 9, "#", 11, True))
-        ops.append(text(58, header_y + 9, "Item Name", 11, True))
-        ops.append(text(214, header_y + 9, "HSN/SAC", 11, True))
-        ops.append(text(306, header_y + 9, "Quantity", 11, True))
-        ops.append(text(390, header_y + 9, "Unit", 11, True))
-        ops.append(text(444, header_y + 9, "Price/ Unit", 11, True))
-        ops.append(text(528, header_y + 9, "Amount", 11, True))
+        summary_top = gst_top
+        ops.append(text(320, summary_top, "Delivery Charges: FREE", 11, True))
+        ops.append(text(320, summary_top - 24, f"Grand Total: {cls._format_currency(total_amount)}", 12, True))
+        amount_lines = cls._wrap_text(f"Amount in Words: {cls._amount_in_words(total_amount)}", 42)
+        amount_y = summary_top - 48
+        for amount_line in amount_lines:
+            ops.append(text(320, amount_y, amount_line, 10))
+            amount_y -= 14
 
-        row_y = header_y - 24
-        for index, item in enumerate(order.items[:7], start=1):
-            ops.append(text(34, row_y, str(index), 11))
-            ops.append(text(58, row_y, item.product_name, 11, True))
-            ops.append(text(214, row_y, item.flavour[:18], 11))
-            ops.append(text(332, row_y, str(item.quantity), 11))
-            ops.append(text(392, row_y, "Pcs", 11))
-            ops.append(text(444, row_y, f"Rs. {float(item.unit_price):.2f}", 11))
-            ops.append(text(520, row_y, f"Rs. {float(item.line_total):.2f}", 11))
-            row_y -= 22
+        payment_top = min(gst_box_top - 108, amount_y - 10)
+        ops.append(text(30, payment_top, "Payment Details", 12, True))
+        payment_lines = [
+            "Payment Mode: Razorpay / UPI / Card / Cash",
+            "Payment Status: Paid",
+            f"Received: {cls._format_currency(total_amount)}",
+            f"Balance: {cls._format_currency(0.0)}",
+        ]
+        y = payment_top - 20
+        for payment_line in payment_lines:
+            ops.append(text(30, y, payment_line, 10))
+            y -= 16
 
-        ops.append(line(28, row_y + 8, 566, row_y + 8))
-        ops.append(text(58, row_y - 16, "Total", 12, True))
-        ops.append(text(332, row_y - 16, str(total_quantity), 12, True))
-        ops.append(text(514, row_y - 16, f"Rs {total_amount:.2f}", 12, True))
-        ops.append(line(28, row_y - 26, 566, row_y - 26))
+        declaration_top = y - 8
+        ops.append(text(30, declaration_top, "Declaration", 12, True))
+        declaration_lines = [
+            "Prices are inclusive of GST.",
+            "Free delivery.",
+            "This is a computer-generated invoice and does not require a signature.",
+        ]
+        y = declaration_top - 20
+        for declaration_line in declaration_lines:
+            for wrapped_line in cls._wrap_text(declaration_line, 78):
+                ops.append(text(30, y, wrapped_line, 10))
+                y -= 14
 
-        left_block_y = row_y - 70
-        ops.append(text(30, left_block_y, "Invoice Amount In Words", 13, True))
-        ops.append(text(30, left_block_y - 24, f"Rupees {int(round(total_amount))} only", 11))
-        ops.append(text(30, left_block_y - 56, "Terms And Conditions", 13, True))
-        ops.append(text(30, left_block_y - 80, "Thank you for doing business with us.", 11))
-
-        summary_y = row_y - 56
-        ops.append(text(305, summary_y, "Sub Total", 11))
-        ops.append(text(520, summary_y, f"Rs {total_amount:.2f}", 11))
-        ops.append(line(302, summary_y - 8, 566, summary_y - 8))
-        ops.append(text(308, summary_y - 24, "Total", 12, True))
-        ops.append(text(512, summary_y - 24, f"Rs {total_amount:.2f}", 12, True))
-        ops.append(text(305, summary_y - 44, "Received", 11))
-        ops.append(text(538, summary_y - 44, "Rs 0.00", 11))
-        ops.append(text(305, summary_y - 68, "Balance", 11))
-        ops.append(text(520, summary_y - 68, f"Rs {total_amount:.2f}", 11))
-        ops.append(line(302, summary_y - 76, 566, summary_y - 76))
-
-        ops.append(text(385, summary_y - 126, "For: Lagad's Nutrition", 11))
-        ops.append(text(385, summary_y - 258, "Authorized Signatory", 11, True))
+        ops.append(text(390, y - 8, "For Lagad's Nutrition", 11, True))
+        ops.append(text(390, 72, "Authorized Signatory", 11, True))
 
         content = "\n".join(ops).encode("latin-1", "replace")
         objects = [

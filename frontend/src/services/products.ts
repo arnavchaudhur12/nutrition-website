@@ -53,14 +53,25 @@ function toHeroSubtitle(description: string): string {
 }
 
 function toHighlights(product: AdminProduct): string[] {
+  const inStockVariants = product.variants.filter((variant) => variant.stock_quantity > 0);
   const variantHighlights = product.variants
+    .filter((variant) => variant.stock_quantity > 0)
     .slice(0, 3)
     .map((variant) => `${variant.weight_label} available`);
-  const stockHighlights = product.variants.some((variant) => variant.stock_quantity > 0)
+  const stockHighlights = inStockVariants.length > 0
     ? ["Ready for checkout"]
     : ["Restock soon"];
 
   return Array.from(new Set([product.category, ...variantHighlights, ...stockHighlights])).slice(0, 3);
+}
+
+function getFullProductName(product: AdminProduct): string {
+  const name = product.name.trim();
+  const flavour = product.flavour.trim();
+  if (!flavour || name.toLowerCase().includes(flavour.toLowerCase())) {
+    return name;
+  }
+  return `${name} - ${flavour}`;
 }
 
 function mapAdminProductToStorefront(product: AdminProduct, index: number): Product {
@@ -78,8 +89,9 @@ function mapAdminProductToStorefront(product: AdminProduct, index: number): Prod
     id: product.slug,
     name: product.name,
     flavour: product.flavour,
+    fullName: getFullProductName(product),
     accent: accentPalette[index % accentPalette.length],
-    heroTitle: product.flavour,
+    heroTitle: getFullProductName(product),
     heroSubtitle: toHeroSubtitle(product.description),
     description: product.description,
     image: images[0],
@@ -91,10 +103,15 @@ function mapAdminProductToStorefront(product: AdminProduct, index: number): Prod
       weight: variant.weight_label,
       mrp: variant.mrp,
       sellingPrice: variant.selling_price,
+      stockQuantity: variant.stock_quantity,
+      discountPercentage:
+        variant.mrp > variant.selling_price
+          ? Math.round(((variant.mrp - variant.selling_price) / variant.mrp) * 100)
+          : 0,
       stockStatus:
         variant.stock_quantity <= 0
           ? "out_of_stock"
-          : variant.stock_quantity <= 10
+          : variant.stock_quantity <= 15
             ? "low_stock"
             : "in_stock"
     }))

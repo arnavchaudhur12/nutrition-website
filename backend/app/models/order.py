@@ -37,9 +37,12 @@ class OrderItem(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     order_id: Mapped[int] = mapped_column(ForeignKey("orders.id"))
+    product_slug: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    variant_id: Mapped[Optional[int]] = mapped_column(nullable=True)
     product_name: Mapped[str] = mapped_column(String(255))
     flavour: Mapped[str] = mapped_column(String(255))
     variant_label: Mapped[str] = mapped_column(String(32))
+    mrp: Mapped[Optional[float]] = mapped_column(Numeric(10, 2), nullable=True)
     unit_price: Mapped[float] = mapped_column(Numeric(10, 2))
     quantity: Mapped[int] = mapped_column()
     line_total: Mapped[float] = mapped_column(Numeric(10, 2))

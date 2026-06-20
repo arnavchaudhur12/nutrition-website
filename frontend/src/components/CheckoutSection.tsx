@@ -70,6 +70,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const discountAmount = Math.max(0, Math.round((totalAmount - discountedTotal) * 100) / 100);
   const premiumSavings = Math.max(0, Math.round((itemTotal - totalAmount) * 100) / 100);
   const totalSavings = Math.round((premiumSavings + discountAmount) * 100) / 100;
+  const unavailableItems = enrichedCart.filter(
+    (item) => item.variant.stockStatus === "out_of_stock" || item.quantity > item.variant.stockQuantity
+  );
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -89,6 +92,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     }
     if (enrichedCart.length === 0) {
       return "Add at least one product to the cart before payment.";
+    }
+    if (unavailableItems.length > 0) {
+      return "Some products in your cart are out of stock or exceed the available quantity.";
     }
     if (
       !form.customerName ||
@@ -271,7 +277,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     return () => {
       cancelled = true;
     };
-  }, [form.couponCode]);
+  }, [form.couponCode, totalAmount]);
 
   return (
     <section className="checkout-shell" id="checkout">
@@ -281,6 +287,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         <p>
           All checkout details except the coupon code are mandatory. The final product breakup and
           payable amount appear below the form before the payment gateway opens.
+        </p>
+        <p className="muted">
+          Product prices are inclusive of all taxes. Delivery charges are not included in the item
+          price and are currently applied as FREE at checkout.
         </p>
         {user ? (
           <p className="muted">
@@ -386,10 +396,21 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
                   className="checkout-product-row"
                 >
                   <div>
-                    <strong>{item.product.flavour}</strong>
+                    <strong>{item.product.fullName}</strong>
                     <p>
                       {item.variant.weight} x {item.quantity}
                     </p>
+                    <p className="muted">
+                      MRP {formatRupees(item.variant.mrp)} | {item.variant.discountPercentage}% off |
+                      Selling {formatRupees(item.variant.sellingPrice)} (inclusive of all taxes)
+                    </p>
+                    {item.variant.stockStatus === "out_of_stock" ? (
+                      <p className="status-message error">Out of stock</p>
+                    ) : item.quantity > item.variant.stockQuantity ? (
+                      <p className="status-message error">
+                        Only {item.variant.stockQuantity} item(s) available for this variant.
+                      </p>
+                    ) : null}
                   </div>
                   <strong>{formatRupees(item.variant.sellingPrice * item.quantity)}</strong>
                 </article>
@@ -427,12 +448,17 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           {totalSavings > 0 ? (
             <p className="muted">Total savings before payment: {formatRupees(totalSavings)}</p>
           ) : null}
+          {unavailableItems.length > 0 ? (
+            <p className="status-message error">
+              Some cart items are no longer available in the requested quantity. Please update your cart before payment.
+            </p>
+          ) : null}
 
           <button
             type="button"
             className="pill pill-primary"
             onClick={handlePayment}
-            disabled={isSubmitting}
+            disabled={isSubmitting || unavailableItems.length > 0}
           >
             {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
           </button>

@@ -9,6 +9,7 @@ export const products: Product[] = [
     id: "dark-chocolate-crispy",
     name: "Peanut Butter",
     flavour: "Dark Chocolate Crispy",
+    fullName: "Peanut Butter - Dark Chocolate Crispy",
     accent: "#ff7a00",
     heroTitle: "Crunch that keeps the spoon coming back",
     heroSubtitle: "Premium roasted peanut butter with deep chocolate notes.",
@@ -23,6 +24,8 @@ export const products: Product[] = [
         weight: "1kg",
         mrp: 699,
         sellingPrice: 500,
+        stockQuantity: 100,
+        discountPercentage: 28,
         stockStatus: "in_stock"
       },
       {
@@ -31,6 +34,8 @@ export const products: Product[] = [
         weight: "500g",
         mrp: 375,
         sellingPrice: 350,
+        stockQuantity: 100,
+        discountPercentage: 7,
         stockStatus: "in_stock"
       }
     ]
@@ -39,6 +44,7 @@ export const products: Product[] = [
     id: "mawa-malai-creamy",
     name: "Peanut Butter",
     flavour: "Mawa Malai Creamy",
+    fullName: "Peanut Butter - Mawa Malai Creamy",
     accent: "#f0a04b",
     heroTitle: "Dessert-inspired richness in every spread",
     heroSubtitle: "Creamy, mellow and indulgent for everyday use.",
@@ -53,6 +59,8 @@ export const products: Product[] = [
         weight: "1kg",
         mrp: 719,
         sellingPrice: 530,
+        stockQuantity: 100,
+        discountPercentage: 26,
         stockStatus: "in_stock"
       },
       {
@@ -61,6 +69,8 @@ export const products: Product[] = [
         weight: "500g",
         mrp: 389,
         sellingPrice: 370,
+        stockQuantity: 100,
+        discountPercentage: 5,
         stockStatus: "in_stock"
       }
     ]

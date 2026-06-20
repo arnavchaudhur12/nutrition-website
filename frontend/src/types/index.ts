@@ -4,6 +4,8 @@ export type ProductVariant = {
   weight: string;
   mrp: number;
   sellingPrice: number;
+  stockQuantity: number;
+  discountPercentage: number;
   stockStatus: "in_stock" | "low_stock" | "out_of_stock";
 };
 
@@ -11,6 +13,7 @@ export type Product = {
   id: string;
   name: string;
   flavour: string;
+  fullName: string;
   accent: string;
   heroTitle: string;
   heroSubtitle: string;

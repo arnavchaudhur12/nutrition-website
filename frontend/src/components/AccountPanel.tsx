@@ -193,6 +193,15 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function formatDiscountPercent(mrp: string, sellingPrice: string): string {
+  const mrpValue = Number(mrp);
+  const sellingValue = Number(sellingPrice);
+  if (!Number.isFinite(mrpValue) || !Number.isFinite(sellingValue) || mrpValue <= 0 || sellingValue >= mrpValue) {
+    return "0%";
+  }
+  return `${Math.round(((mrpValue - sellingValue) / mrpValue) * 100)}%`;
+}
+
 function formatPortfolioDate(value: string): string {
   return new Intl.DateTimeFormat("en-IN", {
     dateStyle: "medium",
@@ -1217,8 +1226,16 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                         )}
                         <div className="admin-product-body">
                           <strong>{product.flavour}</strong>
+                          <span>{product.name}</span>
                           <span>{product.slug}</span>
-                          <span>{product.variants.map((variant) => `${variant.weight_label}: Rs. ${variant.selling_price}`).join(" | ")}</span>
+                          <span>
+                            {product.variants
+                              .map(
+                                (variant) =>
+                                  `${variant.weight_label}: Rs. ${variant.selling_price} (${variant.stock_quantity} in stock)`
+                              )
+                              .join(" | ")}
+                          </span>
                           <div className="admin-inline-actions">
                             <button className="pill" onClick={() => handleEditProduct(product)}>
                               Edit
@@ -1349,6 +1366,13 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                             }
                           />
                         </div>
+                        <div className="field">
+                          <span>Discount</span>
+                          <input
+                            value={formatDiscountPercent(variant.mrp, variant.selling_price)}
+                            readOnly
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1387,11 +1411,14 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   <p>
                     {order.status} | {order.payment_status}
                   </p>
-                  <p>{order.delivery_address}</p>
+                    <p>{order.delivery_address}</p>
                   <div className="metric-list">
                     {order.items.map((item) => (
                       <div key={`${order.order_number}-${item.flavour}-${item.variant_label}`}>
-                        {item.product_name} - {item.flavour} - {item.variant_label} x {item.quantity}
+                        {item.product_name.toLowerCase().includes(item.flavour.toLowerCase())
+                          ? item.product_name
+                          : `${item.product_name} - ${item.flavour}`}{" "}
+                        - {item.variant_label} x {item.quantity}
                       </div>
                     ))}
                   </div>

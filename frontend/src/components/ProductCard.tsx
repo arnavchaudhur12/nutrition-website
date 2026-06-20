@@ -13,6 +13,9 @@ export function ProductCard({ product }: { product: Product }) {
   const touchStartX = useRef<number | null>(null);
 
   const variant = product.variants.find((item) => item.id === variantId) ?? product.variants[0];
+  const isOutOfStock = variant.stockStatus === "out_of_stock";
+  const isLowStock = variant.stockStatus === "low_stock";
+  const maxAllowedQuantity = Math.max(1, variant.stockQuantity);
   const dynamicTotal = variant.sellingPrice * quantity;
   const visibleImage = product.images[imageIndex] ?? product.image;
   const hasMultipleImages = product.images.length > 1;
@@ -45,6 +48,15 @@ export function ProductCard({ product }: { product: Product }) {
     cycleImages(deltaX < 0 ? 1 : -1);
   };
 
+  const handleQuantityInput = (value: string) => {
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) {
+      setQuantity(1);
+      return;
+    }
+    setQuantity(Math.max(1, Math.min(maxAllowedQuantity, Math.floor(parsed))));
+  };
+
   return (
     <article className="product-card" id={product.id}>
       <div className="product-visual" onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd}>
@@ -73,7 +85,7 @@ export function ProductCard({ product }: { product: Product }) {
       </div>
       <div className="product-body">
         <p className="eyebrow">Peanut Butter</p>
-        <h3>{product.flavour}</h3>
+        <h3>{product.fullName}</h3>
         <button
           type="button"
           className="product-description-trigger"
@@ -101,30 +113,52 @@ export function ProductCard({ product }: { product: Product }) {
           </select>
         </label>
 
+        <div className="stock-status-row">
+          {isOutOfStock ? (
+            <span className="status-message error">Out of stock</span>
+          ) : isLowStock ? (
+            <span className="status-message error">Only few items are left</span>
+          ) : (
+            <span className="muted">In stock</span>
+          )}
+        </div>
+
         <div className="price-row">
           <div>
             <strong>Rs. {variant.sellingPrice}</strong>
             <span className="strikethrough">Rs. {variant.mrp}</span>
+            <p className="muted">
+              {variant.discountPercentage}% off ({`inclusive of all taxes`})
+            </p>
           </div>
           <div className="quantity-stepper">
             <span>Qty</span>
-            <div className="quantity-stepper-controls" aria-label={`Quantity for ${product.flavour}`}>
+            <div className="quantity-stepper-controls" aria-label={`Quantity for ${product.fullName}`}>
               <button
                 type="button"
                 className="quantity-stepper-button"
-                aria-label={`Decrease quantity for ${product.flavour}`}
+                aria-label={`Decrease quantity for ${product.fullName}`}
                 onClick={() => setQuantity((current) => Math.max(1, current - 1))}
+                disabled={isOutOfStock}
               >
                 -
               </button>
-              <span className="quantity-stepper-value" aria-live="polite">
-                {quantity}
-              </span>
+              <input
+                className="quantity-stepper-value"
+                type="number"
+                min={1}
+                max={maxAllowedQuantity}
+                value={quantity}
+                onChange={(event) => handleQuantityInput(event.target.value)}
+                aria-label={`Quantity for ${product.fullName}`}
+                disabled={isOutOfStock}
+              />
               <button
                 type="button"
                 className="quantity-stepper-button"
-                aria-label={`Increase quantity for ${product.flavour}`}
-                onClick={() => setQuantity((current) => current + 1)}
+                aria-label={`Increase quantity for ${product.fullName}`}
+                onClick={() => setQuantity((current) => Math.min(maxAllowedQuantity, current + 1))}
+                disabled={isOutOfStock || quantity >= maxAllowedQuantity}
               >
                 +
               </button>
@@ -136,6 +170,7 @@ export function ProductCard({ product }: { product: Product }) {
           <span>Total: Rs. {dynamicTotal}</span>
           <button
             className="pill pill-primary"
+            disabled={isOutOfStock}
             onClick={() =>
               addItem({
                 productId: product.id,
@@ -144,7 +179,7 @@ export function ProductCard({ product }: { product: Product }) {
               })
             }
           >
-            Add to Cart
+            {isOutOfStock ? "Out of Stock" : "Add to Cart"}
           </button>
         </div>
       </div>
@@ -154,17 +189,17 @@ export function ProductCard({ product }: { product: Product }) {
           className="terms-modal-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={`${product.flavour} description`}
+          aria-label={`${product.fullName} description`}
           onClick={() => setDescriptionOpen(false)}
         >
           <div className="terms-modal-card product-description-modal" onClick={(event) => event.stopPropagation()}>
             <div className="terms-modal-header">
-              <h3>{product.flavour}</h3>
+              <h3>{product.fullName}</h3>
               <button
                 type="button"
                 className="icon-button"
                 onClick={() => setDescriptionOpen(false)}
-                aria-label={`Close description for ${product.flavour}`}
+                aria-label={`Close description for ${product.fullName}`}
               >
                 x
               </button>
@@ -181,23 +216,23 @@ export function ProductCard({ product }: { product: Product }) {
           className="terms-modal-overlay"
           role="dialog"
           aria-modal="true"
-          aria-label={`${product.flavour} image preview`}
+          aria-label={`${product.fullName} image preview`}
           onClick={() => setImagePreviewOpen(false)}
         >
           <div className="terms-modal-card product-image-modal" onClick={(event) => event.stopPropagation()}>
             <div className="terms-modal-header">
-              <h3>{product.flavour}</h3>
+              <h3>{product.fullName}</h3>
               <button
                 type="button"
                 className="icon-button"
                 onClick={() => setImagePreviewOpen(false)}
-                aria-label={`Close image preview for ${product.flavour}`}
+                aria-label={`Close image preview for ${product.fullName}`}
               >
                 x
               </button>
             </div>
             <div className="product-image-modal-body">
-              <img src={visibleImage} alt={product.flavour} className="product-image-modal-preview" />
+              <img src={visibleImage} alt={product.fullName} className="product-image-modal-preview" />
             </div>
           </div>
         </div>

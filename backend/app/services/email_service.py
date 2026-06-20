@@ -32,6 +32,16 @@ class EmailService:
     ) -> None:
         self._send_to_buyer_and_admin(buyer_email, subject, html_body, attachments)
 
+    def send_to_explicit_recipients(
+        self,
+        recipients: Iterable[str],
+        subject: str,
+        html_body: str,
+        attachments: Iterable[EmailAttachment] = (),
+    ) -> None:
+        unique_recipients = [recipient for recipient in dict.fromkeys(recipients) if recipient]
+        self._send_to_recipients(unique_recipients, subject, html_body, attachments)
+
     def _send_to_buyer_and_admin(
         self,
         buyer_email: str,
@@ -44,13 +54,21 @@ class EmailService:
                 [buyer_email, self.settings.notification_email, self.settings.smtp_user]
             )
         )
+        self._send_to_recipients(recipients, subject, html_body, attachments)
+
+    def _send_to_recipients(
+        self,
+        recipients: list[str],
+        subject: str,
+        html_body: str,
+        attachments: Iterable[EmailAttachment] = (),
+    ) -> None:
         local_smtp_hosts = {"localhost", "127.0.0.1", "0.0.0.0"}
         can_send_without_password = self.settings.smtp_host in local_smtp_hosts
         if not self.settings.smtp_password and not can_send_without_password:
             logger.info(
-                "Email queued for buyer=%s admin=%s subject=%s",
-                buyer_email,
-                self.settings.notification_email,
+                "Email queued for recipients=%s subject=%s",
+                ",".join(recipients),
                 subject,
             )
             logger.debug("Email body preview: %s", html_body[:500])
