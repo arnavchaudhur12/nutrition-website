@@ -35,6 +35,11 @@ def format_order_number(sequence: int) -> str:
     return f"LN-{sequence:02d}"
 
 
+def format_non_final_order_number(order_id: int, payment_status: str, status: str) -> str:
+    prefix = "FAILED" if payment_status == "failed" or status == "payment_failed" else "PENDING"
+    return f"{prefix}-{order_id:06d}"
+
+
 def main() -> None:
     args = parse_args()
     db_path = (ROOT / args.db_path).resolve()
@@ -43,7 +48,7 @@ def main() -> None:
     with sqlite3.connect(db_path) as connection:
         rows = connection.execute(
             """
-            SELECT id, order_number
+            SELECT id, order_number, payment_status, status
             FROM orders
             ORDER BY datetime(created_at) ASC, id ASC
             """
@@ -54,8 +59,18 @@ def main() -> None:
             return
 
         renames: list[tuple[int, str, str]] = []
-        for index, (order_id, order_number) in enumerate(rows, start=1):
-            new_order_number = format_order_number(index)
+        successful_index = 0
+        for order_id, order_number, payment_status, status in rows:
+            is_successful = payment_status == "paid" and status != "cancelled"
+            if is_successful:
+                successful_index += 1
+                new_order_number = format_order_number(successful_index)
+            else:
+                new_order_number = format_non_final_order_number(
+                    int(order_id),
+                    str(payment_status or ""),
+                    str(status or ""),
+                )
             if order_number != new_order_number:
                 renames.append((int(order_id), str(order_number), new_order_number))
 
@@ -86,7 +101,7 @@ def main() -> None:
             rename_invoice_pdfs(pdf_dir, old_order_number, new_order_number)
         connection.commit()
 
-    print(f"Renumbered {len(old_to_new)} orders.")
+    print(f"Updated {len(old_to_new)} orders.")
 
 
 def rename_invoice_pdfs(pdf_dir: Path, old_order_number: str, new_order_number: str) -> None:

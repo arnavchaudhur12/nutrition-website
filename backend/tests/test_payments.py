@@ -8,6 +8,7 @@ from app.main import app
 from app.repositories.order import OrderRepository
 from app.repositories.product import ProductRepository
 from app.services.email_service import EmailService
+from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
 
 
@@ -92,14 +93,14 @@ def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
 
     assert response.status_code == 200
     assert response.json()["order_id"] == "order_test_123"
-    assert response.json()["app_order_number"].startswith("LN-")
-    assert int(response.json()["app_order_number"].split("-")[1]) >= 13
-    assert response.json()["app_order_number"] == f"LN-{int(response.json()['app_order_number'].split('-')[1]):02d}"
+    assert response.json()["app_order_number"] is None
+    assert response.json()["receipt"].startswith("PENDING-")
 
 
 def test_order_numbers_stay_sequential(monkeypatch) -> None:
     client = TestClient(app)
     created_receipts: list[str] = []
+    sent_confirmations: list[str] = []
 
     def fake_create_razorpay_order(
         self: PaymentService,
@@ -116,6 +117,16 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
         }
 
     monkeypatch.setattr(PaymentService, "create_razorpay_order", fake_create_razorpay_order)
+    monkeypatch.setattr(
+        PaymentService,
+        "verify_razorpay_signature",
+        lambda self, order_id, payment_id, signature: True,
+    )
+    monkeypatch.setattr(
+        EmailService,
+        "send_order_confirmation",
+        lambda self, buyer_email, subject, html_body, attachments: sent_confirmations.append(subject),
+    )
 
     email = f"sequence-{uuid4().hex[:8]}@example.com"
     register_response = client.post(
@@ -152,12 +163,35 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
 
     assert first.status_code == 200
     assert second.status_code == 200
-    first_sequence = int(first.json()["app_order_number"].split("-")[1])
-    second_sequence = int(second.json()["app_order_number"].split("-")[1])
+
+    first_verify = client.post(
+        "/api/verify-payment",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "razorpay_order_id": first.json()["order_id"],
+            "razorpay_payment_id": "pay_seq_1",
+            "razorpay_signature": "sig_seq_1",
+        },
+    )
+    second_verify = client.post(
+        "/api/verify-payment",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "razorpay_order_id": second.json()["order_id"],
+            "razorpay_payment_id": "pay_seq_2",
+            "razorpay_signature": "sig_seq_2",
+        },
+    )
+
+    assert first_verify.status_code == 200
+    assert second_verify.status_code == 200
+    first_sequence = int(first_verify.json()["order_number"].split("-")[1])
+    second_sequence = int(second_verify.json()["order_number"].split("-")[1])
     assert first_sequence >= 13
     assert second_sequence == first_sequence + 1
-    assert first.json()["app_order_number"] == f"LN-{first_sequence:02d}"
-    assert second.json()["app_order_number"] == f"LN-{second_sequence:02d}"
+    assert first_verify.json()["order_number"] == f"LN-{first_sequence:02d}"
+    assert second_verify.json()["order_number"] == f"LN-{second_sequence:02d}"
+    assert len(sent_confirmations) == 2
 
 
 def test_coupon_code_applies_discount(monkeypatch) -> None:
@@ -456,7 +490,7 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
     )
 
     assert create_response.status_code == 200
-    order_number = create_response.json()["app_order_number"]
+    assert create_response.json()["app_order_number"] is None
 
     webhook_response = client.post(
         "/api/payments/webhook",
@@ -468,7 +502,6 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
                         "entity": {
                             "id": "pay_webhook_test",
                             "order_id": razorpay_order_id,
-                            "notes": {"order_number": order_number},
                         }
                     }
                 },
@@ -477,7 +510,8 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
 
     assert webhook_response.status_code == 200
     assert webhook_response.json()["processed"] is True
-    assert webhook_response.json()["order_number"] == order_number
+    order_number = webhook_response.json()["order_number"]
+    assert order_number == OrderService.format_order_number(int(order_number.split("-")[1]))
 
     with SessionLocal() as db:
         order = OrderRepository(db).get_by_order_number(order_number)

@@ -86,8 +86,10 @@ class OrderService:
                 comments=payload.comments or "",
                 items=payload.items,
             )
-            order = self._build_order(order_payload)
-            app_order_number = order.order_number
+            order = self._build_order(
+                order_payload,
+                order_number=self._generate_pending_order_number(),
+            )
             subtotal = float(order.total_amount)
             discount_percent = self._get_coupon_discount_percent(payload.coupon_code)
             discounted_total = self._apply_discount(subtotal, discount_percent)
@@ -184,7 +186,7 @@ class OrderService:
         failure_reason = payload.description or payload.reason or "Payment failed or was cancelled."
         self.email_service.send_payment_failure(
             buyer_email=order.email,
-            subject=f"Payment failed for {order.order_number}",
+            subject=self._build_payment_failure_subject(order),
             html_body=self._build_payment_failure_email_body(order, failure_reason),
         )
 
@@ -248,6 +250,8 @@ class OrderService:
         razorpay_order_id: str,
         should_send_confirmation: bool,
     ) -> None:
+        if not self._is_final_order_number(order.order_number):
+            order.order_number = self._generate_order_number()
         if order.payment_status != "paid":
             self._decrement_inventory_for_order(order)
         order.status = "confirmed"
@@ -266,7 +270,11 @@ class OrderService:
                 attachments=[self.build_invoice_attachment(order)],
             )
 
-    def _build_order(self, payload: OrderCreateRequest) -> Order:
+    def _build_order(
+        self,
+        payload: OrderCreateRequest,
+        order_number: Optional[str] = None,
+    ) -> Order:
         total_amount = 0.0
         order_items: list[OrderItem] = []
 
@@ -323,9 +331,8 @@ class OrderService:
                 )
             )
 
-        order_number = self._generate_order_number()
         return Order(
-            order_number=order_number,
+            order_number=order_number or self._generate_order_number(),
             total_amount=total_amount,
             customer_name=payload.customer_name,
             email=payload.email,
@@ -443,6 +450,14 @@ class OrderService:
     @staticmethod
     def format_order_number(sequence: int) -> str:
         return f"LN-{sequence:02d}"
+
+    @staticmethod
+    def _is_final_order_number(order_number: str) -> bool:
+        return order_number.startswith("LN-")
+
+    @staticmethod
+    def _generate_pending_order_number() -> str:
+        return f"PENDING-{uuid4().hex[:12].upper()}"
 
     def _generate_order_number(self) -> str:
         sequence = self.orders.get_next_order_sequence(self.settings.order_number_start)
@@ -679,12 +694,13 @@ class OrderService:
     ) -> str:
         return cls._build_email_body(order, invoice_number_override)
 
-    @staticmethod
-    def _build_payment_failure_email_body(order: Order, reason: str) -> str:
+    @classmethod
+    def _build_payment_failure_email_body(cls, order: Order, reason: str) -> str:
+        checkout_reference = cls._build_checkout_reference(order)
         return (
             f"<div style='font-family:Arial,sans-serif;max-width:720px;margin:0 auto;color:#111827;'>"
             f"<h2 style='margin-bottom:8px;'>Payment could not be completed</h2>"
-            f"<p style='margin-top:0;'>Order <strong>{order.order_number}</strong> is marked as payment failed.</p>"
+            f"<p style='margin-top:0;'>Checkout <strong>{checkout_reference}</strong> is marked as payment failed.</p>"
             f"<div style='background:#fef2f2;border:1px solid #fecaca;border-radius:12px;padding:16px;margin:20px 0;'>"
             f"<p style='margin:0 0 8px;'><strong>Reason:</strong> {reason}</p>"
             f"<p style='margin:0 0 8px;'><strong>Customer:</strong> {order.customer_name}</p>"
@@ -696,6 +712,14 @@ class OrderService:
             f"<p>You can retry the payment from the website if needed.</p>"
             f"</div>"
         )
+
+    @classmethod
+    def _build_checkout_reference(cls, order: Order) -> str:
+        return order.payment_reference or order.order_number
+
+    @classmethod
+    def _build_payment_failure_subject(cls, order: Order) -> str:
+        return f"Payment failed for checkout {cls._build_checkout_reference(order)}"
 
     @classmethod
     def _resolve_invoice_number(cls, order: Order, invoice_number_override: Optional[str] = None) -> str:

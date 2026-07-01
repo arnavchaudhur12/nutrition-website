@@ -48,18 +48,21 @@ class OrderRepository:
         return result.scalar_one_or_none()
 
     def get_next_order_sequence(self, start_from: int) -> int:
-        order_numbers = self.db.execute(select(Order.order_number, Order.id)).all()
+        order_numbers = self.db.execute(
+            select(Order.order_number, Order.id, Order.payment_status, Order.status)
+        ).all()
         highest_ln_sequence = 0
         highest_fallback_sequence = max(start_from - 1, 0)
 
-        for order_number, order_id in order_numbers:
-            if order_number and order_number.startswith("LN-"):
+        for order_number, order_id, payment_status, order_status in order_numbers:
+            is_successful = payment_status == "paid" and order_status != "cancelled"
+            if is_successful and order_number and order_number.startswith("LN-"):
                 suffix = order_number[3:]
                 if suffix.isdigit():
                     highest_ln_sequence = max(highest_ln_sequence, int(suffix))
                     continue
 
-            if order_id is not None:
+            if is_successful and order_id is not None:
                 highest_fallback_sequence = max(highest_fallback_sequence, int(order_id))
 
         base_sequence = highest_ln_sequence or highest_fallback_sequence
