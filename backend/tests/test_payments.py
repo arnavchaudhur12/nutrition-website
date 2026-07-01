@@ -94,6 +94,7 @@ def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
     assert response.json()["order_id"] == "order_test_123"
     assert response.json()["app_order_number"].startswith("LN-")
     assert int(response.json()["app_order_number"].split("-")[1]) >= 13
+    assert response.json()["app_order_number"] == f"LN-{int(response.json()['app_order_number'].split('-')[1]):02d}"
 
 
 def test_order_numbers_stay_sequential(monkeypatch) -> None:
@@ -155,6 +156,8 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
     second_sequence = int(second.json()["app_order_number"].split("-")[1])
     assert first_sequence >= 13
     assert second_sequence == first_sequence + 1
+    assert first.json()["app_order_number"] == f"LN-{first_sequence:02d}"
+    assert second.json()["app_order_number"] == f"LN-{second_sequence:02d}"
 
 
 def test_coupon_code_applies_discount(monkeypatch) -> None:

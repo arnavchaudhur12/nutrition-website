@@ -448,6 +448,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           {totalSavings > 0 ? (
             <p className="muted">Total savings before payment: {formatRupees(totalSavings)}</p>
           ) : null}
+          <p className="muted">Expected Delivery: 3–7 business days</p>
           {unavailableItems.length > 0 ? (
             <p className="status-message error">
               Some cart items are no longer available in the requested quantity. Please update your cart before payment.

@@ -440,9 +440,13 @@ class OrderService:
             return True
         return created_at >= threshold
 
+    @staticmethod
+    def format_order_number(sequence: int) -> str:
+        return f"LN-{sequence:02d}"
+
     def _generate_order_number(self) -> str:
         sequence = self.orders.get_next_order_sequence(self.settings.order_number_start)
-        return f"LN-{sequence:06d}"
+        return self.format_order_number(sequence)
 
     def _decrement_inventory_for_order(self, order: Order) -> None:
         for item in order.items:
@@ -704,7 +708,7 @@ class OrderService:
         invoice_number_override: Optional[str] = None,
     ) -> tuple[str, bytes, str, str]:
         invoice_number = cls._resolve_invoice_number(order, invoice_number_override)
-        filename = f"invoice-{invoice_number}.pdf"
+        filename = f"{invoice_number}.pdf"
         return (filename, cls._render_invoice_pdf(order, invoice_number_override), "application", "pdf")
 
     @classmethod

@@ -62,7 +62,7 @@ def test_invoice_pdf_contains_order_details() -> None:
 
     filename, content, maintype, subtype = OrderService._build_invoice_attachment(order)
 
-    assert filename == "invoice-LN-TEST1234.pdf"
+    assert filename == "LN-TEST1234.pdf"
     assert maintype == "application"
     assert subtype == "pdf"
     assert content.startswith(b"%PDF-1.4")

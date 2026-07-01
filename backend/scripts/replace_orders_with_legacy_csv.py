@@ -13,6 +13,7 @@ if str(ROOT) not in sys.path:
 
 from app.db.session import SessionLocal
 from app.models.order import Order, OrderItem
+from app.services.order_service import OrderService
 
 CSV_PATH = ROOT / "scripts" / "legacy_orders_template.csv"
 PINCODE_PATTERN = re.compile(r"(?<!\d)(\d{6})(?!\d)")
@@ -70,7 +71,7 @@ def main() -> None:
             count = int(row["Product Count"].strip())
             pincode, delivery_address = extract_pincode_and_address(row["Customer Adress"])
             order = Order(
-                order_number=f"LN-{index:06d}",
+                order_number=OrderService.format_order_number(index),
                 status="confirmed",
                 payment_status="paid",
                 total_amount=float(amount),

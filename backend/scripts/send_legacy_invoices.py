@@ -234,7 +234,7 @@ def main() -> None:
     email_service = EmailService()
     pricing_map = load_variant_pricing()
     for index, row in enumerate(rows, start=args.invoice_start):
-        invoice_number = f"LN-{index:06d}"
+        invoice_number = OrderService.format_order_number(index)
         order = build_order(row, invoice_number, pricing_map)
         attachment = OrderService.build_invoice_attachment(order, invoice_number)
         pdf_path = output_dir / attachment[0]

@@ -49,19 +49,21 @@ class OrderRepository:
 
     def get_next_order_sequence(self, start_from: int) -> int:
         order_numbers = self.db.execute(select(Order.order_number, Order.id)).all()
-        highest_sequence = max(start_from - 1, 0)
+        highest_ln_sequence = 0
+        highest_fallback_sequence = max(start_from - 1, 0)
 
         for order_number, order_id in order_numbers:
             if order_number and order_number.startswith("LN-"):
                 suffix = order_number[3:]
                 if suffix.isdigit():
-                    highest_sequence = max(highest_sequence, int(suffix))
+                    highest_ln_sequence = max(highest_ln_sequence, int(suffix))
                     continue
 
             if order_id is not None:
-                highest_sequence = max(highest_sequence, int(order_id))
+                highest_fallback_sequence = max(highest_fallback_sequence, int(order_id))
 
-        return highest_sequence + 1
+        base_sequence = highest_ln_sequence or highest_fallback_sequence
+        return base_sequence + 1
 
     def aggregate_total_revenue(self) -> float:
         result = self.db.execute(select(func.coalesce(func.sum(Order.total_amount), 0)))
