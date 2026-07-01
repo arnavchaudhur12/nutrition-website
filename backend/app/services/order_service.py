@@ -20,6 +20,7 @@ from app.schemas.order import (
     RazorpayVerifyRequest,
 )
 from app.services.email_service import EmailService
+from app.services.google_sheet_service import GoogleSheetService
 from app.services.payment_service import PaymentService
 from app.services.coupon_service import CouponService
 
@@ -269,6 +270,7 @@ class OrderService:
                 html_body=self._build_email_body(order),
                 attachments=[self.build_invoice_attachment(order)],
             )
+        GoogleSheetService().sync_successful_orders_snapshot_best_effort()
 
     def _build_order(
         self,
