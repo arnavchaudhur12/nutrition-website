@@ -1,7 +1,10 @@
 from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
+
+INDIAN_PHONE_REGEX = r"^[6-9]\d{9}$"
+INDIAN_PINCODE_REGEX = r"^[1-9]\d{5}$"
 
 
 class OrderItemRequest(BaseModel):
@@ -20,6 +23,34 @@ class OrderCreateRequest(BaseModel):
     comments: Optional[str] = None
     items: list[OrderItemRequest]
 
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) != 10 or not cleaned.isdigit() or cleaned[0] not in "6789":
+            raise ValueError("Phone number must be a valid 10-digit Indian mobile number.")
+        return cleaned
+
+    @field_validator("alternate_phone_number")
+    @classmethod
+    def validate_alternate_phone_number(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if len(cleaned) != 10 or not cleaned.isdigit() or cleaned[0] not in "6789":
+            raise ValueError("Alternative phone number must be a valid 10-digit Indian mobile number.")
+        return cleaned
+
+    @field_validator("pincode")
+    @classmethod
+    def validate_pincode(cls, value: str) -> str:
+        cleaned = value.strip()
+        if len(cleaned) != 6 or not cleaned.isdigit() or cleaned[0] == "0":
+            raise ValueError("Pincode must be a valid 6-digit Indian pincode.")
+        return cleaned
+
 
 class RazorpayOrderCreateRequest(BaseModel):
     amount: Optional[int] = Field(default=None, ge=100)
@@ -34,6 +65,38 @@ class RazorpayOrderCreateRequest(BaseModel):
     comments: Optional[str] = None
     coupon_code: Optional[str] = None
     items: list[OrderItemRequest] = Field(default_factory=list)
+
+    @field_validator("phone_number")
+    @classmethod
+    def validate_phone_number(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if len(cleaned) != 10 or not cleaned.isdigit() or cleaned[0] not in "6789":
+            raise ValueError("Phone number must be a valid 10-digit Indian mobile number.")
+        return cleaned
+
+    @field_validator("alternate_phone_number")
+    @classmethod
+    def validate_alternate_phone_number(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        if len(cleaned) != 10 or not cleaned.isdigit() or cleaned[0] not in "6789":
+            raise ValueError("Alternative phone number must be a valid 10-digit Indian mobile number.")
+        return cleaned
+
+    @field_validator("pincode")
+    @classmethod
+    def validate_pincode(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if len(cleaned) != 6 or not cleaned.isdigit() or cleaned[0] == "0":
+            raise ValueError("Pincode must be a valid 6-digit Indian pincode.")
+        return cleaned
 
     @model_validator(mode="after")
     def validate_payment_source(self) -> "RazorpayOrderCreateRequest":

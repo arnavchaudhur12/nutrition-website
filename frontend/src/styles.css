@@ -444,6 +444,12 @@ main {
   font-weight: 700;
 }
 
+.field-error {
+  color: #b42318;
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
 .field input,
 .field textarea,
 .field select {

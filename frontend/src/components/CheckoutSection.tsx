@@ -25,6 +25,41 @@ const initialFormState = {
   couponCode: ""
 };
 
+const indianPhoneRegex = /^[6-9]\d{9}$/;
+const indianPincodeRegex = /^[1-9]\d{5}$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function getCheckoutFieldErrors(form: typeof initialFormState) {
+  const errors: Partial<Record<keyof typeof initialFormState, string>> = {};
+
+  if (!form.customerName.trim()) {
+    errors.customerName = "Full name is required.";
+  }
+  if (!form.deliveryAddress.trim()) {
+    errors.deliveryAddress = "Delivery address is required.";
+  }
+  if (!form.phoneNumber.trim()) {
+    errors.phoneNumber = "Phone number is required.";
+  } else if (!indianPhoneRegex.test(form.phoneNumber.trim())) {
+    errors.phoneNumber = "Enter a valid 10-digit Indian mobile number.";
+  }
+  if (form.alternatePhoneNumber.trim() && !indianPhoneRegex.test(form.alternatePhoneNumber.trim())) {
+    errors.alternatePhoneNumber = "Enter a valid 10-digit Indian mobile number.";
+  }
+  if (!form.email.trim()) {
+    errors.email = "Email address is required.";
+  } else if (!emailRegex.test(form.email.trim())) {
+    errors.email = "Enter a valid email address.";
+  }
+  if (!form.pincode.trim()) {
+    errors.pincode = "Pincode is required.";
+  } else if (!indianPincodeRegex.test(form.pincode.trim())) {
+    errors.pincode = "Enter a valid 6-digit Indian pincode.";
+  }
+
+  return errors;
+}
+
 function formatRupees(amount: number) {
   return new Intl.NumberFormat("en-IN", {
     style: "currency",
@@ -43,6 +78,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const paymentFlowLock = useRef(false);
   const [couponDiscountPercent, setCouponDiscountPercent] = useState(0);
   const [couponStatus, setCouponStatus] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof typeof initialFormState, string>>>({});
+  const liveFieldErrors = useMemo(() => getCheckoutFieldErrors(form), [form]);
+  const hasLiveFieldErrors = Object.keys(liveFieldErrors).length > 0;
 
   const enrichedCart = useMemo(
     () =>
@@ -76,11 +114,25 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
+    setFieldErrors((current) => {
+      if (!current[field]) {
+        return current;
+      }
+      const next = { ...current };
+      delete next[field];
+      return next;
+    });
   };
 
   const showStatus = (type: "success" | "error", message: string) => {
     setStatusType(type);
     setStatusMessage(message);
+  };
+
+  const validateFields = () => {
+    const errors = getCheckoutFieldErrors(form);
+    setFieldErrors(errors);
+    return errors;
   };
 
   const validateCheckout = () => {
@@ -104,6 +156,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       !form.email
     ) {
       return "Please fill all mandatory fields: name, delivery address, pincode, phone number, and email.";
+    }
+    const errors = validateFields();
+    if (Object.keys(errors).length > 0) {
+      return Object.values(errors)[0] || "Please correct the highlighted checkout fields.";
     }
     if (totalAmount < 1) {
       return "Minimum payment amount is Rs. 1.";
@@ -308,6 +364,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
                 value={form.customerName}
                 onChange={(event) => updateField("customerName", event.target.value)}
               />
+              {liveFieldErrors.customerName ? <span className="field-error">{liveFieldErrors.customerName}</span> : null}
             </label>
             <label className="field">
               <span>Delivery Address</span>
@@ -317,22 +374,29 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
                 value={form.deliveryAddress}
                 onChange={(event) => updateField("deliveryAddress", event.target.value)}
               />
+              {liveFieldErrors.deliveryAddress ? <span className="field-error">{liveFieldErrors.deliveryAddress}</span> : null}
             </label>
             <label className="field">
               <span>Pincode</span>
               <input
+                inputMode="numeric"
+                maxLength={6}
                 placeholder="Enter delivery pincode"
                 value={form.pincode}
-                onChange={(event) => updateField("pincode", event.target.value)}
+                onChange={(event) => updateField("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))}
               />
+              {liveFieldErrors.pincode ? <span className="field-error">{liveFieldErrors.pincode}</span> : null}
             </label>
             <label className="field">
               <span>Phone Number</span>
               <input
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="Primary mobile number"
                 value={form.phoneNumber}
-                onChange={(event) => updateField("phoneNumber", event.target.value)}
+                onChange={(event) => updateField("phoneNumber", event.target.value.replace(/\D/g, "").slice(0, 10))}
               />
+              {liveFieldErrors.phoneNumber ? <span className="field-error">{liveFieldErrors.phoneNumber}</span> : null}
             </label>
             <label className="field">
               <span>Email Address</span>
@@ -340,16 +404,24 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
                 type="email"
                 placeholder="your@email.com"
                 value={form.email}
-                onChange={(event) => updateField("email", event.target.value)}
+                onChange={(event) => updateField("email", event.target.value.trim())}
               />
+              {liveFieldErrors.email ? <span className="field-error">{liveFieldErrors.email}</span> : null}
             </label>
             <label className="field">
               <span>Alternative Phone Number</span>
               <input
+                inputMode="numeric"
+                maxLength={10}
                 placeholder="Optional alternate mobile number"
                 value={form.alternatePhoneNumber}
-                onChange={(event) => updateField("alternatePhoneNumber", event.target.value)}
+                onChange={(event) =>
+                  updateField("alternatePhoneNumber", event.target.value.replace(/\D/g, "").slice(0, 10))
+                }
               />
+              {liveFieldErrors.alternatePhoneNumber ? (
+                <span className="field-error">{liveFieldErrors.alternatePhoneNumber}</span>
+              ) : null}
             </label>
             <label className="field">
               <span>Coupon Code (Optional)</span>
@@ -454,12 +526,17 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
               Some cart items are no longer available in the requested quantity. Please update your cart before payment.
             </p>
           ) : null}
+          {hasLiveFieldErrors ? (
+            <p className="status-message error">
+              Please correct the highlighted customer details before continuing to the payment gateway.
+            </p>
+          ) : null}
 
           <button
             type="button"
             className="pill pill-primary"
             onClick={handlePayment}
-            disabled={isSubmitting || unavailableItems.length > 0}
+            disabled={isSubmitting || unavailableItems.length > 0 || hasLiveFieldErrors}
           >
             {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
           </button>
