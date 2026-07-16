@@ -40,12 +40,19 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
   const mobileHeroImage =
     mobileImages.length > 0 ? mobileImages[currentSlide % mobileImages.length] : null;
   const rawCtaLink = (hero.cta_link || "").trim();
-  const isInternalCta = !rawCtaLink || rawCtaLink.startsWith("#");
+  const isExternalCta = /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(rawCtaLink)
+    || /^(mailto:|tel:)/i.test(rawCtaLink);
+  const isInternalCta = !rawCtaLink || !isExternalCta;
 
   const scrollToProducts = () => {
-    const preferredTargetId = rawCtaLink.replace(/^#/, "") || "products-start";
+    const normalizedTarget = rawCtaLink
+      .replace(/^https?:\/\/[^/]+/i, "")
+      .replace(/^\/+/, "")
+      .replace(/^#/, "");
+    const preferredTargetId = normalizedTarget || "products-start";
     const target =
       document.getElementById(preferredTargetId) ||
+      document.getElementById(preferredTargetId.replace(/^products$/, "products-start")) ||
       document.getElementById("products-start") ||
       document.getElementById("products");
 
