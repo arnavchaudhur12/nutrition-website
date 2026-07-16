@@ -1,7 +1,8 @@
+from datetime import date
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_admin
@@ -54,6 +55,30 @@ def get_coupon_orders(
     _admin=Depends(get_current_admin),
 ) -> list[AdminCouponOrderSummaryRead]:
     return OrderService(db).list_coupon_order_summary(period)
+
+
+@router.get("/invoice-statement/download")
+def download_invoice_statement(
+    start_date: date = Query(...),
+    end_date: date = Query(...),
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+) -> Response:
+    order_service = OrderService(db)
+    orders = order_service.list_paid_orders_for_date_range(start_date, end_date)
+    if not orders:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No paid invoices were found in the selected date range.",
+        )
+
+    filename, content, _, _ = order_service.build_invoice_statement_attachment(
+        orders,
+        start_date,
+        end_date,
+    )
+    headers = {"Content-Disposition": f'attachment; filename="{filename}"'}
+    return Response(content=content, media_type="application/pdf", headers=headers)
 
 
 @router.put("/hero", response_model=HeroSettingsRead)

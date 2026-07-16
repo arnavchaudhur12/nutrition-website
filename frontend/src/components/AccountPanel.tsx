@@ -6,6 +6,7 @@ import {
   createAdminProduct,
   deleteAdminCoupon,
   deleteAdminProduct,
+  downloadInvoiceStatement,
   fetchAdminCouponOrders,
   fetchAdminCustomerPortfolio,
   fetchAdminCoupons,
@@ -221,6 +222,13 @@ function normalizeMetrics(metrics: AdminMetrics): AdminMetrics {
   };
 }
 
+function formatDateInput(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: AccountPanelProps) {
   const { user, loginUser, logoutUser } = useAuth();
   const [view, setView] = useState<View>("menu");
@@ -243,6 +251,10 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [productForm, setProductForm] = useState<ProductFormState>(emptyProductForm());
   const [uploadingImage, setUploadingImage] = useState(false);
+  const [invoiceStartDate, setInvoiceStartDate] = useState(() =>
+    formatDateInput(new Date(Date.now() - (29 * 24 * 60 * 60 * 1000)))
+  );
+  const [invoiceEndDate, setInvoiceEndDate] = useState(() => formatDateInput(new Date()));
 
   const [loginEmail, setLoginEmail] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -737,6 +749,49 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
     }
   };
 
+  const handleDownloadInvoiceStatement = async () => {
+    resetFeedback();
+    const token = localStorage.getItem("lagads-admin-token");
+    if (!token) {
+      setError("Admin token missing. Please log in again.");
+      return;
+    }
+    if (!invoiceStartDate || !invoiceEndDate) {
+      setError("Please select both start and end dates.");
+      return;
+    }
+    if (invoiceEndDate < invoiceStartDate) {
+      setError("End date must be on or after start date.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { blob, filename } = await downloadInvoiceStatement(
+        token,
+        invoiceStartDate,
+        invoiceEndDate
+      );
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = filename;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+      setMessage(`Invoice statement downloaded for ${invoiceStartDate} to ${invoiceEndDate}.`);
+    } catch (downloadError) {
+      setError(
+        downloadError instanceof Error
+          ? downloadError.message
+          : "Unable to download invoice statement."
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <aside className={`panel ${open ? "open" : ""} ${view === "admin" ? "panel-admin" : ""}`}>
       <div className="drawer-header">
@@ -1002,6 +1057,31 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                   <div className="admin-section-header">
                     <h3>Customer Portfolio</h3>
                     <span>Historical customer journey in tabular format with column-level filters.</span>
+                  </div>
+                  <div className="admin-inline-actions" style={{ marginBottom: "1rem", alignItems: "flex-end", flexWrap: "wrap" }}>
+                    <label className="field" style={{ margin: 0 }}>
+                      <span>Invoice Start Date</span>
+                      <input
+                        type="date"
+                        value={invoiceStartDate}
+                        onChange={(event) => setInvoiceStartDate(event.target.value)}
+                      />
+                    </label>
+                    <label className="field" style={{ margin: 0 }}>
+                      <span>Invoice End Date</span>
+                      <input
+                        type="date"
+                        value={invoiceEndDate}
+                        onChange={(event) => setInvoiceEndDate(event.target.value)}
+                      />
+                    </label>
+                    <button
+                      className="pill pill-primary"
+                      onClick={handleDownloadInvoiceStatement}
+                      disabled={loading}
+                    >
+                      {loading ? "Preparing PDF..." : "Download Invoice Statement"}
+                    </button>
                   </div>
                   <div className="admin-table-shell">
                     <table className="admin-table admin-table-portfolio">

@@ -39,6 +39,22 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
     desktopImages.length > 0 ? desktopImages[currentSlide % desktopImages.length] : null;
   const mobileHeroImage =
     mobileImages.length > 0 ? mobileImages[currentSlide % mobileImages.length] : null;
+  const ctaLink = hero.cta_link || "#products-start";
+
+  const handleCtaClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
+    if (!ctaLink.startsWith("#")) {
+      return;
+    }
+
+    event.preventDefault();
+    const targetId = ctaLink.slice(1) || "products-start";
+    const target =
+      document.getElementById(targetId) ||
+      document.getElementById("products-start") ||
+      document.getElementById("products");
+
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   return (
     <section className="hero">
@@ -61,7 +77,7 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
         </div>
       )}
       <div className="hero-actions hero-actions-fixed">
-        <a className="pill pill-primary" href={hero.cta_link || "#products"}>
+        <a className="pill pill-primary" href={ctaLink} onClick={handleCtaClick}>
           {hero.cta_label || "Shop Now"}
         </a>
       </div>

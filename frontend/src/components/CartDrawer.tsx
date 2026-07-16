@@ -9,7 +9,7 @@ type CartDrawerProps = {
 };
 
 export function CartDrawer({ open, onClose, products }: CartDrawerProps) {
-  const { items, removeItem } = useCart();
+  const { items, removeItem, updateItemQuantity } = useCart();
 
   const enriched = items.map((item) => {
     const product = products.find((candidate) => candidate.id === item.productId);
@@ -54,6 +54,37 @@ export function CartDrawer({ open, onClose, products }: CartDrawerProps) {
                   </p>
                 )}
                 <strong>Rs. {item.variant.sellingPrice * item.quantity}</strong>
+                <div className="cart-item-quantity-controls" aria-label={`Quantity for ${item.product.fullName}`}>
+                  <button
+                    type="button"
+                    className="quantity-stepper-button"
+                    aria-label={`Decrease quantity for ${item.product.fullName}`}
+                    onClick={() =>
+                      updateItemQuantity(item.productId, item.variantId, item.quantity - 1)
+                    }
+                  >
+                    -
+                  </button>
+                  <span className="cart-item-quantity-value">{item.quantity}</span>
+                  <button
+                    type="button"
+                    className="quantity-stepper-button"
+                    aria-label={`Increase quantity for ${item.product.fullName}`}
+                    onClick={() =>
+                      updateItemQuantity(
+                        item.productId,
+                        item.variantId,
+                        Math.min(item.variant.stockQuantity, item.quantity + 1)
+                      )
+                    }
+                    disabled={
+                      item.variant.stockStatus === "out_of_stock" ||
+                      item.quantity >= item.variant.stockQuantity
+                    }
+                  >
+                    +
+                  </button>
+                </div>
               </div>
               <button
                 className="text-button"

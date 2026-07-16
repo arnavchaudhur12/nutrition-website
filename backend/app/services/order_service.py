@@ -1,7 +1,7 @@
-from datetime import datetime, timedelta
-from typing import Any
-from uuid import uuid4
 from typing import Optional
+from datetime import date, datetime, time, timedelta
+from uuid import uuid4
+from typing import Any
 
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -498,7 +498,11 @@ class OrderService:
 
     @classmethod
     def _get_item_display_name(cls, item: OrderItem) -> str:
-        return cls._build_product_display_name(item.product_name, item.flavour)
+        product_name = cls._build_product_display_name(item.product_name, item.flavour)
+        variant_label = (item.variant_label or "").strip()
+        if not variant_label:
+            return product_name
+        return f"{product_name} ({variant_label})"
 
     @classmethod
     def _format_currency(cls, amount: float) -> str:
@@ -737,8 +741,57 @@ class OrderService:
         filename = f"{invoice_number}.pdf"
         return (filename, cls._render_invoice_pdf(order, invoice_number_override), "application", "pdf")
 
+    def list_paid_orders_for_date_range(
+        self,
+        start_date: date,
+        end_date: date,
+    ) -> list[Order]:
+        if end_date < start_date:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="End date must be on or after start date.",
+            )
+
+        start_at = datetime.combine(start_date, time.min)
+        end_before = datetime.combine(end_date + timedelta(days=1), time.min)
+        return self.orders.list_paid_orders_in_date_range(start_at, end_before)
+
+    @classmethod
+    def build_invoice_statement_attachment(
+        cls,
+        orders: list[Order],
+        start_date: date,
+        end_date: date,
+    ) -> tuple[str, bytes, str, str]:
+        filename = cls.build_invoice_statement_filename(start_date, end_date)
+        return (
+            filename,
+            cls.render_invoice_statement_pdf(orders),
+            "application",
+            "pdf",
+        )
+
+    @staticmethod
+    def build_invoice_statement_filename(start_date: date, end_date: date) -> str:
+        return f"invoice-statement-{start_date.isoformat()}_to_{end_date.isoformat()}.pdf"
+
+    @classmethod
+    def render_invoice_statement_pdf(cls, orders: list[Order]) -> bytes:
+        page_contents = [cls._build_invoice_page_content(order) for order in orders]
+        return cls._build_pdf_document(page_contents)
+
     @classmethod
     def _render_invoice_pdf(cls, order: Order, invoice_number_override: Optional[str] = None) -> bytes:
+        return cls._build_pdf_document(
+            [cls._build_invoice_page_content(order, invoice_number_override)]
+        )
+
+    @classmethod
+    def _build_invoice_page_content(
+        cls,
+        order: Order,
+        invoice_number_override: Optional[str] = None,
+    ) -> bytes:
         total_amount = float(order.total_amount)
         invoice_date = order.created_at.strftime("%d/%m/%Y") if order.created_at else ""
         invoice_number = cls._resolve_invoice_number(order, invoice_number_override)
@@ -859,24 +912,51 @@ class OrderService:
         ops.append(text(390, y - 8, "For Lagad's Nutrition", 11, True))
         ops.append(text(390, 72, "Authorized Signatory", 11, True))
 
-        content = "\n".join(ops).encode("latin-1", "replace")
-        objects = [
+        return "\n".join(ops).encode("latin-1", "replace")
+
+    @classmethod
+    def _build_pdf_document(cls, page_contents: list[bytes]) -> bytes:
+        if not page_contents:
+            raise ValueError("At least one invoice is required to build a PDF document.")
+
+        objects: list[bytes] = [
             b"1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-            b"2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-            (
-                b"3 0 obj\n"
-                b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
-                b"/Resources << /Font << /F1 4 0 R /F2 6 0 R >> >> /Contents 5 0 R >>\n"
-                b"endobj\n"
-            ),
-            b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-            (
-                f"5 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
-                + content
-                + b"\nendstream\nendobj\n"
-            ),
-            b"6 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n",
+            b"2 0 obj\n<< /Type /Pages /Kids [",
         ]
+        page_object_ids: list[int] = []
+        dynamic_objects: list[bytes] = [
+            b"3 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
+            b"4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>\nendobj\n",
+        ]
+
+        next_object_id = 5
+        for content in page_contents:
+            page_object_id = next_object_id
+            content_object_id = next_object_id + 1
+            page_object_ids.append(page_object_id)
+
+            dynamic_objects.append(
+                (
+                    f"{content_object_id} 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
+                    + content
+                    + b"\nendstream\nendobj\n"
+                )
+            )
+            dynamic_objects.append(
+                (
+                    f"{page_object_id} 0 obj\n"
+                    "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
+                    "/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> "
+                    f"/Contents {content_object_id} 0 R >>\nendobj\n"
+                ).encode("ascii")
+            )
+            next_object_id += 2
+
+        kids = " ".join(f"{page_object_id} 0 R" for page_object_id in page_object_ids)
+        objects[1] = (
+            f"2 0 obj\n<< /Type /Pages /Kids [{kids}] /Count {len(page_object_ids)} >>\nendobj\n"
+        ).encode("ascii")
+        objects.extend(dynamic_objects)
 
         pdf = bytearray(b"%PDF-1.4\n")
         offsets: list[int] = [0]

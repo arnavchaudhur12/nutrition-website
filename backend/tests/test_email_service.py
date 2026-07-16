@@ -60,11 +60,71 @@ def test_invoice_pdf_contains_order_details() -> None:
         ],
     )
 
-    filename, content, maintype, subtype = OrderService._build_invoice_attachment(order)
+    filename, content, maintype, subtype = OrderService.build_invoice_attachment(order)
 
     assert filename == "LN-TEST1234.pdf"
     assert maintype == "application"
     assert subtype == "pdf"
     assert content.startswith(b"%PDF-1.4")
-    assert b"Tax Invoice" in content
+    assert b"TAX INVOICE" in content
     assert b"LN-TEST1234" in content
+    assert b"Protein - Chocolate \\(1kg\\)" in content
+
+
+def test_invoice_statement_pdf_contains_multiple_invoice_numbers() -> None:
+    first_order = Order(
+        order_number="LN-TEST1001",
+        total_amount=2499.0,
+        customer_name="First Customer",
+        email="first@example.com",
+        phone_number="9999999999",
+        delivery_address="Mumbai",
+        pincode="400001",
+        created_at=datetime(2026, 5, 13, 12, 0, 0),
+        items=[
+            OrderItem(
+                product_name="Protein",
+                flavour="Chocolate",
+                variant_label="1kg",
+                unit_price=2499.0,
+                quantity=1,
+                line_total=2499.0,
+            )
+        ],
+    )
+    second_order = Order(
+        order_number="LN-TEST1002",
+        total_amount=1299.0,
+        customer_name="Second Customer",
+        email="second@example.com",
+        phone_number="8888888888",
+        delivery_address="Pune",
+        pincode="411001",
+        created_at=datetime(2026, 5, 14, 12, 0, 0),
+        items=[
+            OrderItem(
+                product_name="Protein",
+                flavour="Mawa Malai",
+                variant_label="500g",
+                unit_price=1299.0,
+                quantity=1,
+                line_total=1299.0,
+            )
+        ],
+    )
+
+    filename, content, maintype, subtype = OrderService.build_invoice_statement_attachment(
+        [first_order, second_order],
+        datetime(2026, 5, 13).date(),
+        datetime(2026, 5, 14).date(),
+    )
+
+    assert filename == "invoice-statement-2026-05-13_to_2026-05-14.pdf"
+    assert maintype == "application"
+    assert subtype == "pdf"
+    assert content.startswith(b"%PDF-1.4")
+    assert b"LN-TEST1001" in content
+    assert b"LN-TEST1002" in content
+    assert b"Protein - Chocolate \\(1kg\\)" in content
+    assert b"Protein - Mawa Malai \\(500g\\)" in content
+    assert b"/Count 2" in content

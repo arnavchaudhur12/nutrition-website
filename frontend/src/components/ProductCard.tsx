@@ -3,7 +3,12 @@ import type { TouchEvent } from "react";
 import { useCart } from "../context/CartContext";
 import type { Product } from "../types";
 
-export function ProductCard({ product }: { product: Product }) {
+type ProductCardProps = {
+  product: Product;
+  onAddedToCart?: () => void;
+};
+
+export function ProductCard({ product, onAddedToCart }: ProductCardProps) {
   const { addItem } = useCart();
   const [variantId, setVariantId] = useState(product.variants[0].id);
   const [quantity, setQuantity] = useState(1);
@@ -171,13 +176,14 @@ export function ProductCard({ product }: { product: Product }) {
           <button
             className="pill pill-primary"
             disabled={isOutOfStock}
-            onClick={() =>
+            onClick={() => {
               addItem({
                 productId: product.id,
                 variantId,
                 quantity
-              })
-            }
+              });
+              onAddedToCart?.();
+            }}
           >
             {isOutOfStock ? "Out of Stock" : "Add to Cart"}
           </button>

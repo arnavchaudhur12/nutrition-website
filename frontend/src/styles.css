@@ -701,6 +701,19 @@ main {
   border-bottom: 1px solid var(--border);
 }
 
+.cart-item-quantity-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-top: 0.8rem;
+}
+
+.cart-item-quantity-value {
+  min-width: 2rem;
+  text-align: center;
+  font-weight: 800;
+}
+
 .cart-footer {
   display: grid;
   gap: 0.8rem;

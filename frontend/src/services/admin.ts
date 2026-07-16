@@ -96,6 +96,31 @@ export async function fetchAdminCouponOrders(
   return parseJson<AdminCouponOrderSummary[]>(response, "Unable to load coupon-wise orders.");
 }
 
+export async function downloadInvoiceStatement(
+  token: string,
+  startDate: string,
+  endDate: string
+): Promise<{ blob: Blob; filename: string }> {
+  const response = await fetch(
+    `${API_BASE_URL}/admin/invoice-statement/download?start_date=${encodeURIComponent(startDate)}&end_date=${encodeURIComponent(endDate)}`,
+    {
+      headers: authHeaders(token)
+    }
+  );
+
+  if (!response.ok) {
+    const body = (await response.json().catch(() => null)) as { detail?: string } | null;
+    throw new Error(body?.detail ?? "Unable to download invoice statement.");
+  }
+
+  const disposition = response.headers.get("Content-Disposition") ?? "";
+  const match = disposition.match(/filename="([^"]+)"/i);
+  return {
+    blob: await response.blob(),
+    filename: match?.[1] ?? `invoice-statement-${startDate}-to-${endDate}.pdf`
+  };
+}
+
 type ProductPayload = {
   slug: string;
   name: string;

@@ -1,3 +1,5 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -21,6 +23,7 @@ from app.db.base import Base
 from app.db.migrations import run_startup_migrations
 from app.db.seed import seed_defaults
 from app.db.session import SessionLocal, engine
+from app.services.monthly_invoice_scheduler import MonthlyInvoiceScheduler
 
 settings = get_settings()
 configure_logging()
@@ -29,11 +32,24 @@ run_startup_migrations(engine)
 with SessionLocal() as session:
     seed_defaults(session)
 
+invoice_scheduler = MonthlyInvoiceScheduler()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    invoice_scheduler.start()
+    try:
+        yield
+    finally:
+        await invoice_scheduler.stop()
+
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     docs_url="/docs",
     redoc_url="/redoc",
+    lifespan=lifespan,
 )
 
 app.add_middleware(

@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -28,6 +29,24 @@ class OrderRepository:
             .where(Order.email == email)
             .options(selectinload(Order.items))
             .order_by(Order.created_at.desc())
+        )
+        return list(result.scalars().all())
+
+    def list_paid_orders_in_date_range(
+        self,
+        start_at: datetime,
+        end_before: datetime,
+    ) -> list[Order]:
+        result = self.db.execute(
+            select(Order)
+            .where(
+                Order.payment_status == "paid",
+                Order.status != "cancelled",
+                Order.created_at >= start_at,
+                Order.created_at < end_before,
+            )
+            .options(selectinload(Order.items))
+            .order_by(Order.created_at.asc(), Order.id.asc())
         )
         return list(result.scalars().all())
 

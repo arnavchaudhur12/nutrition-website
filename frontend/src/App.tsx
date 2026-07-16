@@ -133,7 +133,7 @@ export default function App() {
           <p>Smooth texture, rich taste, and nutrition that fits your lifestyle.</p>
         </section>
 
-        <section className="product-grid">
+        <section className="product-grid" id="products-start">
           {productsLoading ? <p className="catalog-message">Loading product catalog...</p> : null}
           {!productsLoading && productsError ? (
             <p className="catalog-message">{productsError}</p>
@@ -142,7 +142,13 @@ export default function App() {
             <p className="catalog-message">No products are live right now. Add one from the admin dashboard.</p>
           ) : null}
           {!productsLoading && !productsError
-            ? products.map((product) => <ProductCard key={product.id} product={product} />)
+            ? products.map((product) => (
+              <ProductCard
+                key={product.id}
+                product={product}
+                onAddedToCart={() => setCartOpen(true)}
+              />
+            ))
             : null}
         </section>
 

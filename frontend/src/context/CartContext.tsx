@@ -5,6 +5,7 @@ type CartContextValue = {
   items: CartItem[];
   addItem: (item: CartItem) => void;
   removeItem: (productId: string, variantId: string) => void;
+  updateItemQuantity: (productId: string, variantId: string, quantity: number) => void;
   clearCart: () => void;
   itemCount: number;
 };
@@ -41,6 +42,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const updateItemQuantity = (productId: string, variantId: string, quantity: number) => {
+    if (quantity <= 0) {
+      removeItem(productId, variantId);
+      return;
+    }
+
+    setItems((current) =>
+      current.map((item) =>
+        item.productId === productId && item.variantId === variantId
+          ? { ...item, quantity }
+          : item
+      )
+    );
+  };
+
   const clearCart = () => {
     setItems([]);
   };
@@ -51,7 +67,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   );
 
   return (
-    <CartContext.Provider value={{ items, addItem, removeItem, clearCart, itemCount }}>
+    <CartContext.Provider value={{ items, addItem, removeItem, updateItemQuantity, clearCart, itemCount }}>
       {children}
     </CartContext.Provider>
   );
