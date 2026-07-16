@@ -937,18 +937,18 @@ class OrderService:
 
             dynamic_objects.append(
                 (
-                    f"{content_object_id} 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
-                    + content
-                    + b"\nendstream\nendobj\n"
-                )
-            )
-            dynamic_objects.append(
-                (
                     f"{page_object_id} 0 obj\n"
                     "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] "
                     "/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> "
                     f"/Contents {content_object_id} 0 R >>\nendobj\n"
                 ).encode("ascii")
+            )
+            dynamic_objects.append(
+                (
+                    f"{content_object_id} 0 obj\n<< /Length {len(content)} >>\nstream\n".encode("ascii")
+                    + content
+                    + b"\nendstream\nendobj\n"
+                )
             )
             next_object_id += 2
 
