@@ -39,21 +39,26 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
     desktopImages.length > 0 ? desktopImages[currentSlide % desktopImages.length] : null;
   const mobileHeroImage =
     mobileImages.length > 0 ? mobileImages[currentSlide % mobileImages.length] : null;
-  const ctaLink = hero.cta_link || "#products-start";
+  const rawCtaLink = (hero.cta_link || "").trim();
+  const isInternalCta = !rawCtaLink || rawCtaLink.startsWith("#");
 
-  const handleCtaClick = (event: React.MouseEvent<HTMLAnchorElement>) => {
-    if (!ctaLink.startsWith("#")) {
-      return;
-    }
-
-    event.preventDefault();
-    const targetId = ctaLink.slice(1) || "products-start";
+  const scrollToProducts = () => {
+    const preferredTargetId = rawCtaLink.replace(/^#/, "") || "products-start";
     const target =
-      document.getElementById(targetId) ||
+      document.getElementById(preferredTargetId) ||
       document.getElementById("products-start") ||
       document.getElementById("products");
 
-    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+    if (!target) {
+      return;
+    }
+
+    target.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.history.replaceState(null, "", "#products-start");
+  };
+
+  const handleInternalCtaClick = () => {
+    scrollToProducts();
   };
 
   return (
@@ -77,9 +82,15 @@ export function HeroCarousel({ hero }: { hero: HeroConfig | null }) {
         </div>
       )}
       <div className="hero-actions hero-actions-fixed">
-        <a className="pill pill-primary" href={ctaLink} onClick={handleCtaClick}>
-          {hero.cta_label || "Shop Now"}
-        </a>
+        {isInternalCta ? (
+          <button type="button" className="pill pill-primary hero-cta-button" onClick={handleInternalCtaClick}>
+            {hero.cta_label || "Shop Now"}
+          </button>
+        ) : (
+          <a className="pill pill-primary" href={rawCtaLink}>
+            {hero.cta_label || "Shop Now"}
+          </a>
+        )}
       </div>
     </section>
   );
