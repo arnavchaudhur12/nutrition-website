@@ -801,7 +801,7 @@ class OrderService:
 
         def text(x: int, y: int, value: str, size: int = 11, bold: bool = False) -> str:
             font = "F2" if bold else "F1"
-            return f"BT /{font} {size} Tf {x} {y} Td ({cls._escape_pdf_text(value)}) Tj ET"
+            return f"BT 0 0 0 rg /{font} {size} Tf {x} {y} Td ({cls._escape_pdf_text(value)}) Tj ET"
 
         def rect(x: int, y: int, w: int, h: int, rgb: tuple[float, float, float], fill: bool = True) -> str:
             op = "f" if fill else "S"
