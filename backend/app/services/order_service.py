@@ -132,7 +132,9 @@ class OrderService:
         data = self._ensure_delivery_serviceable(delivery_pincode)
         return {
             "is_serviceable": bool(data.get("is_serviceable")),
-            "pickup_pincode": str(data.get("pickup_pincode") or ""),
+            "pickup_pincode": str(
+                data.get("pickup_pincode") or self.settings.genzlogix_pickup_pincode or ""
+            ),
             "delivery_pincode": str(data.get("delivery_pincode") or delivery_pincode.strip()),
             "estimated_delivery_days": self._int_or_none(data.get("estimated_delivery_days")),
             "cod_available": self._bool_or_none(data.get("cod_available")),
@@ -378,6 +380,7 @@ class OrderService:
     def list_customer_orders(self, user: User) -> list[CustomerOrderRead]:
         orders = self.orders.list_orders_by_email(user.email)
         for order in orders:
+            self._create_shipment_for_paid_order_best_effort(order)
             self._refresh_tracking_for_order_best_effort(order)
         return [self._build_customer_order_read(order) for order in orders]
 
