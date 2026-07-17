@@ -105,6 +105,11 @@ class ShippingService:
         message = body.get("message")
         if isinstance(message, str) and message.strip():
             return message.strip()
+        error = body.get("error")
+        if isinstance(error, dict):
+            error_message = error.get("message")
+            if isinstance(error_message, str) and error_message.strip():
+                return error_message.strip()
         detail = body.get("detail")
         if isinstance(detail, str) and detail.strip():
             return detail.strip()

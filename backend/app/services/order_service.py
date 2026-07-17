@@ -595,7 +595,14 @@ class OrderService:
         try:
             tracking_data = self.shipping_service.track_shipment(order.awb_number)
         except HTTPException as error:
-            order.shipment_error = error.detail if isinstance(error.detail, str) else "Tracking refresh failed."
+            error_message = error.detail if isinstance(error.detail, str) else "Tracking refresh failed."
+            if error_message == "Shipment not found for this AWB":
+                order.shipment_error = None
+                order.shipment_last_synced_at = datetime.utcnow()
+                if not order.shipment_status:
+                    order.shipment_status = "PENDING"
+            else:
+                order.shipment_error = error_message
             self.db.add(order)
             self.db.commit()
             self.db.refresh(order)
