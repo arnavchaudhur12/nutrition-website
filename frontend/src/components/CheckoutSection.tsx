@@ -18,6 +18,8 @@ const initialFormState = {
   customerName: "",
   deliveryAddress: "",
   pincode: "",
+  city: "",
+  state: "",
   phoneNumber: "",
   email: "",
   alternatePhoneNumber: "",
@@ -55,6 +57,12 @@ function getCheckoutFieldErrors(form: typeof initialFormState) {
     errors.pincode = "Pincode is required.";
   } else if (!indianPincodeRegex.test(form.pincode.trim())) {
     errors.pincode = "Enter a valid 6-digit Indian pincode.";
+  }
+  if (!form.city.trim()) {
+    errors.city = "City is required.";
+  }
+  if (!form.state.trim()) {
+    errors.state = "State is required.";
   }
 
   return errors;
@@ -152,10 +160,12 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       !form.customerName ||
       !form.deliveryAddress ||
       !form.pincode ||
+      !form.city ||
+      !form.state ||
       !form.phoneNumber ||
       !form.email
     ) {
-      return "Please fill all mandatory fields: name, delivery address, pincode, phone number, and email.";
+      return "Please fill all mandatory fields: name, delivery address, pincode, city, state, phone number, and email.";
     }
     const errors = validateFields();
     if (Object.keys(errors).length > 0) {
@@ -199,6 +209,8 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         alternate_phone_number: form.alternatePhoneNumber || undefined,
         delivery_address: form.deliveryAddress,
         pincode: form.pincode,
+        city: form.city,
+        state: form.state,
         comments: form.comments,
         coupon_code: form.couponCode.trim() || undefined,
         items: enrichedCart.map((item) => ({
@@ -345,6 +357,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           payable amount appear below the form before the payment gateway opens.
         </p>
         <p className="muted">
+          City and state are collected here so your delivery timeline can begin automatically after
+          a successful payment.
+        </p>
+        <p className="muted">
           Product prices are inclusive of all taxes. Delivery charges are not included in the item
           price and are currently applied as FREE at checkout.
         </p>
@@ -369,13 +385,33 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             <label className="field">
               <span>Delivery Address</span>
               <textarea
-                placeholder="House number, street, city, state, pin code"
+                placeholder="House number, street, locality, landmark"
                 rows={4}
                 value={form.deliveryAddress}
                 onChange={(event) => updateField("deliveryAddress", event.target.value)}
               />
               {liveFieldErrors.deliveryAddress ? <span className="field-error">{liveFieldErrors.deliveryAddress}</span> : null}
             </label>
+            <div className="checkout-location-grid">
+              <label className="field">
+                <span>City</span>
+                <input
+                  placeholder="Enter city"
+                  value={form.city}
+                  onChange={(event) => updateField("city", event.target.value)}
+                />
+                {liveFieldErrors.city ? <span className="field-error">{liveFieldErrors.city}</span> : null}
+              </label>
+              <label className="field">
+                <span>State</span>
+                <input
+                  placeholder="Enter state"
+                  value={form.state}
+                  onChange={(event) => updateField("state", event.target.value)}
+                />
+                {liveFieldErrors.state ? <span className="field-error">{liveFieldErrors.state}</span> : null}
+              </label>
+            </div>
             <label className="field">
               <span>Pincode</span>
               <input

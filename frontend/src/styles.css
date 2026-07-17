@@ -558,6 +558,12 @@ main {
   gap: 1rem;
 }
 
+.checkout-location-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.9rem;
+}
+
 .checkout-order-header {
   display: flex;
   justify-content: space-between;
@@ -1101,17 +1107,187 @@ main {
 
 .order-card {
   display: grid;
-  gap: 0.55rem;
-  padding: 1rem;
-  border-radius: 18px;
-  background: #fffaf3;
-  border: 1px solid var(--border);
+  gap: 0.85rem;
+  padding: 1.2rem;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgba(255, 122, 0, 0.12), transparent 28%),
+    linear-gradient(180deg, rgba(255, 253, 249, 0.98), rgba(255, 247, 237, 0.92));
+  border: 1px solid rgba(15, 62, 65, 0.12);
+  box-shadow: 0 18px 34px rgba(15, 62, 65, 0.08);
 }
 
 .order-header {
   display: flex;
   justify-content: space-between;
   gap: 1rem;
+  align-items: flex-start;
+}
+
+.order-subtitle,
+.order-address {
+  margin: 0.28rem 0 0;
+  color: var(--muted);
+}
+
+.shipment-banner {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding: 1rem 1.05rem;
+  border-radius: 18px;
+  border: 1px solid transparent;
+}
+
+.shipment-banner p {
+  margin: 0.28rem 0 0;
+}
+
+.shipment-banner-pending {
+  background: rgba(15, 62, 65, 0.06);
+  border-color: rgba(15, 62, 65, 0.1);
+}
+
+.shipment-banner-active {
+  background: linear-gradient(135deg, rgba(255, 122, 0, 0.12), rgba(255, 237, 213, 0.82));
+  border-color: rgba(255, 122, 0, 0.2);
+}
+
+.shipment-banner-delivered {
+  background: linear-gradient(135deg, rgba(36, 161, 111, 0.14), rgba(236, 253, 245, 0.95));
+  border-color: rgba(36, 161, 111, 0.22);
+}
+
+.shipment-banner-error {
+  background: linear-gradient(135deg, rgba(180, 35, 24, 0.1), rgba(254, 242, 242, 0.96));
+  border-color: rgba(180, 35, 24, 0.18);
+}
+
+.shipment-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 110px;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 62, 65, 0.1);
+  font-size: 0.85rem;
+  font-weight: 800;
+}
+
+.shipment-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+}
+
+.shipment-meta-card {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.9rem 0.95rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid rgba(15, 62, 65, 0.08);
+}
+
+.shipment-meta-card span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+}
+
+.shipment-timeline {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.25rem 0;
+}
+
+.shipment-step {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 0.8rem;
+  align-items: start;
+  padding: 0.3rem 0;
+  color: var(--muted);
+}
+
+.shipment-step p {
+  margin: 0.24rem 0 0;
+}
+
+.shipment-step-dot {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin-top: 0.15rem;
+  border-radius: 999px;
+  background: rgba(15, 62, 65, 0.14);
+  border: 2px solid rgba(15, 62, 65, 0.12);
+}
+
+.shipment-step:not(:last-child) .shipment-step-dot::after {
+  content: "";
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  width: 2px;
+  height: calc(100% + 18px);
+  transform: translateX(-50%);
+  background: rgba(15, 62, 65, 0.08);
+}
+
+.shipment-step.active,
+.shipment-step.done {
+  color: var(--ink);
+}
+
+.shipment-step.active .shipment-step-dot {
+  background: #fff3e0;
+  border-color: rgba(255, 122, 0, 0.4);
+  box-shadow: 0 0 0 6px rgba(255, 122, 0, 0.12);
+}
+
+.shipment-step.done .shipment-step-dot {
+  background: var(--brand);
+  border-color: var(--brand);
+}
+
+.shipment-history {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.95rem 1rem;
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 62, 65, 0.08);
+}
+
+.shipment-history-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  padding-bottom: 0.7rem;
+  border-bottom: 1px solid rgba(15, 62, 65, 0.08);
+}
+
+.shipment-history-row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.shipment-history-row p {
+  margin: 0.24rem 0 0;
+  color: var(--muted);
+}
+
+.shipment-history-row span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  white-space: nowrap;
 }
 
 .metric-card {
@@ -1364,6 +1540,21 @@ main {
   .terms-grid,
   .metrics-grid {
     grid-template-columns: 1fr;
+  }
+
+  .checkout-location-grid,
+  .shipment-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .shipment-banner,
+  .shipment-history-row {
+    grid-template-columns: 1fr;
+    display: grid;
+  }
+
+  .shipment-history-row span {
+    white-space: normal;
   }
 }
 

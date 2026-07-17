@@ -1,7 +1,7 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Numeric, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
@@ -23,8 +23,21 @@ class Order(Base):
     alternate_phone_number: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     delivery_address: Mapped[str] = mapped_column(Text)
     pincode: Mapped[str] = mapped_column(String(16), default="")
+    city: Mapped[str] = mapped_column(String(120), default="")
+    state: Mapped[str] = mapped_column(String(120), default="")
     comments: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     coupon_code: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    shipment_provider: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    shipment_order_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    shipment_status: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    awb_number: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
+    shipment_courier: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    shipment_label_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    shipment_estimated_delivery: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    shipment_tracking_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    shipment_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    shipment_created_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    shipment_last_synced_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     items: Mapped[list["OrderItem"]] = relationship(

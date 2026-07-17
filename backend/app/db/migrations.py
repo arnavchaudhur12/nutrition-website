@@ -15,6 +15,32 @@ def run_startup_migrations(engine: Engine) -> None:
         statements.append("ALTER TABLE orders ADD COLUMN pincode VARCHAR(16) DEFAULT ''")
     if "coupon_code" not in existing_columns:
         statements.append("ALTER TABLE orders ADD COLUMN coupon_code VARCHAR(32)")
+    if "city" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN city VARCHAR(120) DEFAULT ''")
+    if "state" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN state VARCHAR(120) DEFAULT ''")
+    if "shipment_provider" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_provider VARCHAR(64)")
+    if "shipment_order_id" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_order_id VARCHAR(128)")
+    if "shipment_status" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_status VARCHAR(120)")
+    if "awb_number" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN awb_number VARCHAR(128)")
+    if "shipment_courier" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_courier VARCHAR(120)")
+    if "shipment_label_url" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_label_url TEXT")
+    if "shipment_estimated_delivery" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_estimated_delivery DATE")
+    if "shipment_tracking_history" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_tracking_history TEXT")
+    if "shipment_error" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_error TEXT")
+    if "shipment_created_at" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_created_at DATETIME")
+    if "shipment_last_synced_at" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_last_synced_at DATETIME")
 
     if not statements:
         statements = []

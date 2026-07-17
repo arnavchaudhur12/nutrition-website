@@ -20,6 +20,8 @@ class OrderCreateRequest(BaseModel):
     alternate_phone_number: Optional[str] = None
     delivery_address: str
     pincode: str
+    city: str
+    state: str
     comments: Optional[str] = None
     items: list[OrderItemRequest]
 
@@ -51,6 +53,14 @@ class OrderCreateRequest(BaseModel):
             raise ValueError("Pincode must be a valid 6-digit Indian pincode.")
         return cleaned
 
+    @field_validator("city", "state")
+    @classmethod
+    def validate_location_name(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("City and state are required.")
+        return cleaned
+
 
 class RazorpayOrderCreateRequest(BaseModel):
     amount: Optional[int] = Field(default=None, ge=100)
@@ -62,6 +72,8 @@ class RazorpayOrderCreateRequest(BaseModel):
     alternate_phone_number: Optional[str] = None
     delivery_address: Optional[str] = None
     pincode: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
     comments: Optional[str] = None
     coupon_code: Optional[str] = None
     items: list[OrderItemRequest] = Field(default_factory=list)
@@ -98,6 +110,16 @@ class RazorpayOrderCreateRequest(BaseModel):
             raise ValueError("Pincode must be a valid 6-digit Indian pincode.")
         return cleaned
 
+    @field_validator("city", "state")
+    @classmethod
+    def validate_optional_location_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return value
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        return cleaned
+
     @model_validator(mode="after")
     def validate_payment_source(self) -> "RazorpayOrderCreateRequest":
         if self.items:
@@ -107,6 +129,8 @@ class RazorpayOrderCreateRequest(BaseModel):
                 "phone_number": self.phone_number,
                 "delivery_address": self.delivery_address,
                 "pincode": self.pincode,
+                "city": self.city,
+                "state": self.state,
             }
             missing_fields = [field for field, value in required_fields.items() if not value]
             if missing_fields:
@@ -173,10 +197,35 @@ class CustomerOrderRead(BaseModel):
     alternate_phone_number: Optional[str] = None
     delivery_address: str
     pincode: str
+    city: str
+    state: str
     comments: Optional[str] = None
     items: list[OrderItemRead]
+    shipment: Optional["CustomerOrderShipmentRead"] = None
 
     model_config = {"from_attributes": True}
+
+
+class ShipmentTrackingEventRead(BaseModel):
+    status: str
+    location: Optional[str] = None
+    timestamp: Optional[str] = None
+
+
+class CustomerOrderShipmentRead(BaseModel):
+    provider: str
+    order_id: Optional[str] = None
+    awb_number: Optional[str] = None
+    status: Optional[str] = None
+    courier: Optional[str] = None
+    label_url: Optional[str] = None
+    estimated_delivery: Optional[str] = None
+    error: Optional[str] = None
+    last_synced_at: Optional[str] = None
+    history: list[ShipmentTrackingEventRead] = Field(default_factory=list)
+
+
+CustomerOrderRead.model_rebuild()
 
 
 class AdminCustomerPortfolioRead(BaseModel):

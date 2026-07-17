@@ -1,5 +1,6 @@
-from typing import Optional
+import json
 from datetime import date, datetime, time, timedelta
+from typing import Optional
 from uuid import uuid4
 from typing import Any
 
@@ -14,15 +15,19 @@ from app.repositories.product import ProductRepository
 from app.schemas.order import (
     AdminCouponOrderSummaryRead,
     AdminCustomerPortfolioRead,
+    CustomerOrderRead,
+    CustomerOrderShipmentRead,
     OrderCreateRequest,
     RazorpayFailureRequest,
     RazorpayOrderCreateRequest,
     RazorpayVerifyRequest,
+    ShipmentTrackingEventRead,
 )
 from app.services.email_service import EmailService
 from app.services.google_sheet_service import GoogleSheetService
 from app.services.payment_service import PaymentService
 from app.services.coupon_service import CouponService
+from app.services.shipping_service import ShippingService
 
 
 class OrderService:
@@ -37,6 +42,7 @@ class OrderService:
         self.payment_service = PaymentService()
         self.email_service = EmailService()
         self.coupon_service = CouponService(db)
+        self.shipping_service = ShippingService()
 
     def create_order(self, payload: OrderCreateRequest) -> dict[str, object]:
         order = self._build_order(payload)
@@ -84,6 +90,8 @@ class OrderService:
                 alternate_phone_number=payload.alternate_phone_number or "",
                 delivery_address=payload.delivery_address or "",
                 pincode=payload.pincode or "",
+                city=payload.city or "",
+                state=payload.state or "",
                 comments=payload.comments or "",
                 items=payload.items,
             )
@@ -91,6 +99,7 @@ class OrderService:
                 order_payload,
                 order_number=self._generate_pending_order_number(),
             )
+            app_order_number = order.order_number
             subtotal = float(order.total_amount)
             discount_percent = self._get_coupon_discount_percent(payload.coupon_code)
             discounted_total = self._apply_discount(subtotal, discount_percent)
@@ -270,6 +279,7 @@ class OrderService:
                 html_body=self._build_email_body(order),
                 attachments=[self.build_invoice_attachment(order)],
             )
+        self._create_shipment_for_paid_order_best_effort(order)
         GoogleSheetService().sync_successful_orders_snapshot_best_effort()
 
     def _build_order(
@@ -342,12 +352,17 @@ class OrderService:
             alternate_phone_number=payload.alternate_phone_number,
             delivery_address=payload.delivery_address,
             pincode=payload.pincode,
+            city=payload.city,
+            state=payload.state,
             comments=payload.comments,
             items=order_items,
         )
 
-    def list_customer_orders(self, user: User) -> list[Order]:
-        return self.orders.list_orders_by_email(user.email)
+    def list_customer_orders(self, user: User) -> list[CustomerOrderRead]:
+        orders = self.orders.list_orders_by_email(user.email)
+        for order in orders:
+            self._refresh_tracking_for_order_best_effort(order)
+        return [self._build_customer_order_read(order) for order in orders]
 
     def list_admin_customer_portfolio(self, period: str = "all_time") -> list[AdminCustomerPortfolioRead]:
         portfolio: list[AdminCustomerPortfolioRead] = []
@@ -464,6 +479,207 @@ class OrderService:
     def _generate_order_number(self) -> str:
         sequence = self.orders.get_next_order_sequence(self.settings.order_number_start)
         return self.format_order_number(sequence)
+
+    def _build_customer_order_read(self, order: Order) -> CustomerOrderRead:
+        shipment = None
+        if order.shipment_provider or order.shipment_status or order.awb_number or order.shipment_error:
+            history = [
+                ShipmentTrackingEventRead(
+                    status=str(item.get("status") or "").strip() or "Update",
+                    location=self._string_or_none(item.get("location")),
+                    timestamp=self._string_or_none(item.get("timestamp")),
+                )
+                for item in self._deserialize_tracking_history(order.shipment_tracking_history)
+            ]
+            shipment = CustomerOrderShipmentRead(
+                provider=order.shipment_provider or "GenZLogix",
+                order_id=order.shipment_order_id,
+                awb_number=order.awb_number,
+                status=order.shipment_status,
+                courier=order.shipment_courier,
+                label_url=order.shipment_label_url,
+                estimated_delivery=order.shipment_estimated_delivery.isoformat()
+                if order.shipment_estimated_delivery
+                else None,
+                error=order.shipment_error,
+                last_synced_at=order.shipment_last_synced_at.isoformat()
+                if order.shipment_last_synced_at
+                else None,
+                history=history,
+            )
+
+        return CustomerOrderRead(
+            order_number=order.order_number,
+            status=order.status,
+            payment_status=order.payment_status,
+            total_amount=float(order.total_amount),
+            customer_name=order.customer_name,
+            email=order.email,
+            phone_number=order.phone_number,
+            alternate_phone_number=order.alternate_phone_number,
+            delivery_address=order.delivery_address,
+            pincode=order.pincode,
+            city=order.city,
+            state=order.state,
+            comments=order.comments,
+            items=[item for item in order.items],
+            shipment=shipment,
+        )
+
+    def _create_shipment_for_paid_order_best_effort(self, order: Order) -> None:
+        if order.payment_status != "paid":
+            return
+        if order.shipment_order_id:
+            return
+        if not self.shipping_service.is_configured():
+            return
+
+        try:
+            shipment_data = self.shipping_service.create_order(self._build_shipping_order_payload(order))
+        except HTTPException as error:
+            order.shipment_provider = "GenZLogix"
+            order.shipment_error = error.detail if isinstance(error.detail, str) else "Shipment creation failed."
+            self.db.add(order)
+            self.db.commit()
+            self.db.refresh(order)
+            return
+
+        self._apply_shipment_creation_data(order, shipment_data)
+
+    def _refresh_tracking_for_order_best_effort(self, order: Order) -> None:
+        if not order.awb_number or not self.shipping_service.is_configured():
+            return
+
+        try:
+            tracking_data = self.shipping_service.track_shipment(order.awb_number)
+        except HTTPException as error:
+            order.shipment_error = error.detail if isinstance(error.detail, str) else "Tracking refresh failed."
+            self.db.add(order)
+            self.db.commit()
+            self.db.refresh(order)
+            return
+
+        self._apply_tracking_data(order, tracking_data)
+
+    def _build_shipping_order_payload(self, order: Order) -> dict[str, Any]:
+        total_weight = round(sum(self._parse_weight_kg(item.variant_label) * item.quantity for item in order.items), 3)
+        return {
+            "order_reference": order.order_number,
+            "payment_mode": "PREPAID",
+            "cod_amount": 0,
+            "customer": {
+                "name": order.customer_name,
+                "email": order.email,
+                "phone": order.phone_number,
+            },
+            "drop_details": {
+                "address": order.delivery_address,
+                "city": order.city,
+                "state": order.state,
+                "pincode": order.pincode,
+            },
+            "package": {
+                "weight_kg": total_weight or 0.5,
+                "length_cm": self.settings.genzlogix_default_length_cm,
+                "breadth_cm": self.settings.genzlogix_default_breadth_cm,
+                "height_cm": self.settings.genzlogix_default_height_cm,
+            },
+            "items": [
+                {
+                    "name": self._get_item_display_name(item),
+                    "sku": item.product_slug or item.product_name[:20].upper().replace(" ", "-"),
+                    "qty": item.quantity,
+                    "price": float(item.unit_price),
+                }
+                for item in order.items
+            ],
+        }
+
+    def _apply_shipment_creation_data(self, order: Order, shipment_data: dict[str, Any]) -> None:
+        order.shipment_provider = "GenZLogix"
+        order.shipment_order_id = self._string_or_none(shipment_data.get("order_id"))
+        order.shipment_status = self._string_or_none(shipment_data.get("status")) or "PENDING"
+        order.awb_number = self._string_or_none(shipment_data.get("awb_number"))
+        order.shipment_label_url = self._string_or_none(shipment_data.get("label_url"))
+        order.shipment_created_at = self._parse_iso_datetime(shipment_data.get("created_at"))
+        order.shipment_error = None
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+
+        if order.awb_number:
+            self._refresh_tracking_for_order_best_effort(order)
+
+    def _apply_tracking_data(self, order: Order, tracking_data: dict[str, Any]) -> None:
+        history = tracking_data.get("history")
+        order.shipment_provider = "GenZLogix"
+        order.awb_number = self._string_or_none(tracking_data.get("awb_number")) or order.awb_number
+        order.shipment_status = self._string_or_none(tracking_data.get("current_status")) or order.shipment_status
+        order.shipment_courier = self._string_or_none(tracking_data.get("courier"))
+        order.shipment_estimated_delivery = self._parse_date_value(tracking_data.get("estimated_delivery"))
+        order.shipment_last_synced_at = datetime.utcnow()
+        order.shipment_error = None
+        if isinstance(history, list):
+            normalized_history = [item for item in history if isinstance(item, dict)]
+            order.shipment_tracking_history = json.dumps(
+                normalized_history,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            )
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+
+    @staticmethod
+    def _parse_weight_kg(label: str) -> float:
+        cleaned = (label or "").strip().lower()
+        try:
+            if cleaned.endswith("kg"):
+                return float(cleaned[:-2].strip() or 0)
+            if cleaned.endswith("g"):
+                grams = float(cleaned[:-1].strip() or 0)
+                return round(grams / 1000, 3)
+        except ValueError:
+            return 0.5
+        return 0.5
+
+    @staticmethod
+    def _string_or_none(value: Any) -> Optional[str]:
+        if value is None:
+            return None
+        cleaned = str(value).strip()
+        return cleaned or None
+
+    @staticmethod
+    def _parse_iso_datetime(value: Any) -> Optional[datetime]:
+        if not value:
+            return None
+        try:
+            normalized = str(value).replace("Z", "+00:00")
+            return datetime.fromisoformat(normalized)
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _parse_date_value(value: Any) -> Optional[date]:
+        if not value:
+            return None
+        try:
+            return date.fromisoformat(str(value))
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _deserialize_tracking_history(value: Optional[str]) -> list[dict[str, Any]]:
+        if not value:
+            return []
+        try:
+            decoded = json.loads(value)
+        except json.JSONDecodeError:
+            return []
+        if not isinstance(decoded, list):
+            return []
+        return [item for item in decoded if isinstance(item, dict)]
 
     def _decrement_inventory_for_order(self, order: Order) -> None:
         for item in order.items:

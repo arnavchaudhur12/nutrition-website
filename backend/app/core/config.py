@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
 
+    genzlogix_api_key: str = ""
+    genzlogix_base_url: str = "https://genzlogix.com/api/v1/public"
+    genzlogix_pickup_pincode: str = ""
+    genzlogix_default_length_cm: float = 20
+    genzlogix_default_breadth_cm: float = 15
+    genzlogix_default_height_cm: float = 10
+
     google_sheet_id: str = ""
     google_sheet_worksheet: str = ""
     google_service_account_file: str = ""

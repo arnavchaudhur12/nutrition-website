@@ -8,7 +8,11 @@ export type CustomerOrder = {
   customer_name: string;
   email: string;
   phone_number: string;
+  alternate_phone_number?: string | null;
   delivery_address: string;
+  pincode: string;
+  city: string;
+  state: string;
   comments?: string | null;
   items: Array<{
     product_name: string;
@@ -18,6 +22,22 @@ export type CustomerOrder = {
     quantity: number;
     line_total: number;
   }>;
+  shipment?: {
+    provider: string;
+    order_id?: string | null;
+    awb_number?: string | null;
+    status?: string | null;
+    courier?: string | null;
+    label_url?: string | null;
+    estimated_delivery?: string | null;
+    error?: string | null;
+    last_synced_at?: string | null;
+    history: Array<{
+      status: string;
+      location?: string | null;
+      timestamp?: string | null;
+    }>;
+  } | null;
 };
 
 export async function fetchMyOrders(token: string): Promise<CustomerOrder[]> {
@@ -34,4 +54,3 @@ export async function fetchMyOrders(token: string): Promise<CustomerOrder[]> {
 
   return (await response.json()) as CustomerOrder[];
 }
-
