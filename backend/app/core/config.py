@@ -50,6 +50,13 @@ class Settings(BaseSettings):
     genzlogix_api_key: str = ""
     genzlogix_base_url: str = "https://genzlogix.com/api/v1/public"
     genzlogix_pickup_pincode: str = ""
+    genzlogix_pickup_nickname: str = "Lagad's Nutrition"
+    genzlogix_pickup_address: str = "B12 Jay Ganga nagar Keshav nagar mundhwa Pune"
+    genzlogix_pickup_city: str = "Pune"
+    genzlogix_pickup_state: str = "Maharashtra"
+    genzlogix_pickup_contact_name: str = "Jay Lagad"
+    genzlogix_pickup_phone: str = "8605554809"
+    genzlogix_pickup_gstin: str = ""
     genzlogix_default_length_cm: float = 20
     genzlogix_default_breadth_cm: float = 15
     genzlogix_default_height_cm: float = 10

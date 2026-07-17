@@ -609,6 +609,16 @@ class OrderService:
             "order_reference": order.order_number,
             "payment_mode": "PREPAID",
             "cod_amount": 0,
+            "pickup_details": {
+                "nickname": self.settings.genzlogix_pickup_nickname,
+                "address": self.settings.genzlogix_pickup_address,
+                "city": self.settings.genzlogix_pickup_city,
+                "state": self.settings.genzlogix_pickup_state,
+                "pincode": self.settings.genzlogix_pickup_pincode,
+                "contact_person": self.settings.genzlogix_pickup_contact_name,
+                "phone": self.settings.genzlogix_pickup_phone,
+                "gstin": self.settings.genzlogix_pickup_gstin or None,
+            },
             "customer": {
                 "name": order.customer_name,
                 "email": order.email,
