@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getCitiesOfState, getStatesOfCountry } from "@countrystatecity/countries-browser";
 import type { ICity, IState } from "@countrystatecity/countries-browser";
+import { getIndiaPincode } from "india-pincode/browser";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
 import {
@@ -14,6 +15,13 @@ import type { Product } from "../types";
 
 type CheckoutSectionProps = {
   products: Product[];
+};
+
+type IndiaPincodeLookup = Awaited<ReturnType<typeof getIndiaPincode>>;
+type IndiaPincodeOffice = {
+  area?: string;
+  district?: string;
+  state?: string;
 };
 
 const razorpayKeyId = import.meta.env.VITE_RAZORPAY_KEY_ID ?? "";
@@ -90,6 +98,12 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const [form, setForm] = useState(initialFormState);
   const [states, setStates] = useState<IState[]>([]);
   const [cities, setCities] = useState<ICity[]>([]);
+  const [pincodeLookup, setPincodeLookup] = useState<IndiaPincodeLookup | null>(null);
+  const [pincodeSuggestedCity, setPincodeSuggestedCity] = useState("");
+  const [autoFillTarget, setAutoFillTarget] = useState<{
+    stateIso2: string;
+    cityCandidates: string[];
+  } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [serviceabilityMessage, setServiceabilityMessage] = useState("");
   const [isServiceable, setIsServiceable] = useState<boolean | null>(null);
@@ -133,6 +147,15 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const unavailableItems = enrichedCart.filter(
     (item) => item.variant.stockStatus === "out_of_stock" || item.quantity > item.variant.stockQuantity
   );
+  const cityOptions = useMemo(() => {
+    if (
+      pincodeSuggestedCity &&
+      !cities.some((city) => city.name.trim().toLowerCase() === pincodeSuggestedCity.trim().toLowerCase())
+    ) {
+      return [{ id: -1, name: pincodeSuggestedCity } as ICity, ...cities];
+    }
+    return cities;
+  }, [cities, pincodeSuggestedCity]);
   const isCheckoutBlocked =
     isSubmitting ||
     unavailableItems.length > 0 ||
@@ -158,6 +181,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     if (field === "pincode") {
       setIsServiceable(null);
       setServiceabilityMessage("");
+    }
+    if (field === "city" || field === "state") {
+      setPincodeSuggestedCity("");
     }
   };
 
@@ -351,14 +377,15 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   useEffect(() => {
     let cancelled = false;
     setLocationLoading(true);
-    void getStatesOfCountry("IN")
-      .then((result) => {
+    void Promise.all([getStatesOfCountry("IN"), getIndiaPincode()])
+      .then(([stateResult, pincodeResult]) => {
         if (cancelled) return;
-        setStates([...result].sort((left, right) => left.name.localeCompare(right.name)));
+        setStates([...stateResult].sort((left, right) => left.name.localeCompare(right.name)));
+        setPincodeLookup(pincodeResult);
       })
       .catch(() => {
         if (cancelled) return;
-        showStatus("error", "Unable to load Indian states right now.");
+        showStatus("error", "Unable to load Indian location data right now.");
       })
       .finally(() => {
         if (cancelled) return;
@@ -397,6 +424,75 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       cancelled = true;
     };
   }, [form.state]);
+
+  useEffect(() => {
+    const cleanedPincode = form.pincode.trim();
+    if (!pincodeLookup || states.length === 0 || !indianPincodeRegex.test(cleanedPincode)) {
+      return;
+    }
+
+    type PincodeResult = {
+      success?: boolean;
+      data?: {
+        data?: IndiaPincodeOffice[];
+      };
+    };
+
+    const result = pincodeLookup.getByPincode(cleanedPincode) as PincodeResult;
+    const offices = result?.success ? result.data?.data ?? [] : [];
+    if (!offices.length) {
+      return;
+    }
+
+    const primaryOffice = offices[0];
+    const matchedState = states.find(
+      (state) => state.name.trim().toLowerCase() === String(primaryOffice.state ?? "").trim().toLowerCase()
+    );
+    if (!matchedState) {
+      return;
+    }
+
+    const cityCandidates = Array.from(
+      new Set(
+        [
+          primaryOffice.area?.trim(),
+          primaryOffice.district?.trim(),
+        ].filter((value): value is string => Boolean(value))
+      )
+    );
+
+    setPincodeSuggestedCity(cityCandidates[0] ?? "");
+    setAutoFillTarget({
+      stateIso2: matchedState.iso2,
+      cityCandidates,
+    });
+    setForm((current) => ({
+      ...current,
+      state: matchedState.iso2,
+    }));
+  }, [form.pincode, pincodeLookup, states]);
+
+  useEffect(() => {
+    if (!autoFillTarget || form.state !== autoFillTarget.stateIso2) {
+      return;
+    }
+
+    const normalizedCandidates = autoFillTarget.cityCandidates.map((candidate) => candidate.toLowerCase());
+    const matchedCity = cities.find((city) => normalizedCandidates.includes(city.name.trim().toLowerCase()));
+    const fallbackCity = autoFillTarget.cityCandidates[0] ?? "";
+    const nextCity = matchedCity?.name ?? fallbackCity;
+
+    if (!nextCity) {
+      return;
+    }
+
+    setPincodeSuggestedCity(nextCity);
+    setForm((current) => ({
+      ...current,
+      city: nextCity,
+    }));
+    setAutoFillTarget(null);
+  }, [autoFillTarget, cities, form.state]);
 
   useEffect(() => {
     const token = getSessionToken();
@@ -556,7 +652,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
                 <option value="">
                   {!form.state ? "Select state first" : locationLoading ? "Loading cities..." : "Select city / suburb"}
                 </option>
-                {cities.map((city) => (
+                {cityOptions.map((city) => (
                   <option key={city.id} value={city.name}>
                     {city.name}
                   </option>
