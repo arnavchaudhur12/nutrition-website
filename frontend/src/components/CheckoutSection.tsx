@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getCitiesOfState, getStatesOfCountry } from "@countrystatecity/countries-browser";
-import type { ICity, IState } from "@countrystatecity/countries-browser";
+import { getStatesOfCountry } from "@countrystatecity/countries-browser";
+import type { IState } from "@countrystatecity/countries-browser";
 import { getIndiaPincode } from "india-pincode/browser";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
@@ -97,13 +97,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const { items, clearCart } = useCart();
   const [form, setForm] = useState(initialFormState);
   const [states, setStates] = useState<IState[]>([]);
-  const [cities, setCities] = useState<ICity[]>([]);
   const [pincodeLookup, setPincodeLookup] = useState<IndiaPincodeLookup | null>(null);
-  const [pincodeSuggestedCity, setPincodeSuggestedCity] = useState("");
-  const [autoFillTarget, setAutoFillTarget] = useState<{
-    stateIso2: string;
-    cityCandidates: string[];
-  } | null>(null);
   const [locationLoading, setLocationLoading] = useState(false);
   const [serviceabilityMessage, setServiceabilityMessage] = useState("");
   const [isServiceable, setIsServiceable] = useState<boolean | null>(null);
@@ -147,15 +141,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const unavailableItems = enrichedCart.filter(
     (item) => item.variant.stockStatus === "out_of_stock" || item.quantity > item.variant.stockQuantity
   );
-  const cityOptions = useMemo(() => {
-    if (
-      pincodeSuggestedCity &&
-      !cities.some((city) => city.name.trim().toLowerCase() === pincodeSuggestedCity.trim().toLowerCase())
-    ) {
-      return [{ id: -1, name: pincodeSuggestedCity } as ICity, ...cities];
-    }
-    return cities;
-  }, [cities, pincodeSuggestedCity]);
   const isCheckoutBlocked =
     isSubmitting ||
     unavailableItems.length > 0 ||
@@ -165,9 +150,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
 
   const updateField = (field: keyof typeof form, value: string) => {
     setForm((current) => {
-      if (field === "state") {
-        return { ...current, state: value, city: "" };
-      }
       return { ...current, [field]: value };
     });
     setFieldErrors((current) => {
@@ -181,9 +163,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     if (field === "pincode") {
       setIsServiceable(null);
       setServiceabilityMessage("");
-    }
-    if (field === "city" || field === "state") {
-      setPincodeSuggestedCity("");
     }
   };
 
@@ -398,34 +377,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   }, []);
 
   useEffect(() => {
-    if (!form.state) {
-      setCities([]);
-      return;
-    }
-
-    let cancelled = false;
-    setLocationLoading(true);
-    void getCitiesOfState("IN", form.state)
-      .then((result) => {
-        if (cancelled) return;
-        setCities([...result].sort((left, right) => left.name.localeCompare(right.name)));
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setCities([]);
-        showStatus("error", "Unable to load cities for the selected state.");
-      })
-      .finally(() => {
-        if (cancelled) return;
-        setLocationLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [form.state]);
-
-  useEffect(() => {
     const cleanedPincode = form.pincode.trim();
     if (!pincodeLookup || states.length === 0 || !indianPincodeRegex.test(cleanedPincode)) {
       return;
@@ -452,7 +403,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       return;
     }
 
-    const cityCandidates = Array.from(
+    const locationCandidates = Array.from(
       new Set(
         [
           primaryOffice.area?.trim(),
@@ -460,39 +411,14 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         ].filter((value): value is string => Boolean(value))
       )
     );
+    const nextCity = locationCandidates[0] ?? "";
 
-    setPincodeSuggestedCity(cityCandidates[0] ?? "");
-    setAutoFillTarget({
-      stateIso2: matchedState.iso2,
-      cityCandidates,
-    });
     setForm((current) => ({
       ...current,
       state: matchedState.iso2,
+      city: nextCity || current.city,
     }));
   }, [form.pincode, pincodeLookup, states]);
-
-  useEffect(() => {
-    if (!autoFillTarget || form.state !== autoFillTarget.stateIso2) {
-      return;
-    }
-
-    const normalizedCandidates = autoFillTarget.cityCandidates.map((candidate) => candidate.toLowerCase());
-    const matchedCity = cities.find((city) => normalizedCandidates.includes(city.name.trim().toLowerCase()));
-    const fallbackCity = autoFillTarget.cityCandidates[0] ?? "";
-    const nextCity = matchedCity?.name ?? fallbackCity;
-
-    if (!nextCity) {
-      return;
-    }
-
-    setPincodeSuggestedCity(nextCity);
-    setForm((current) => ({
-      ...current,
-      city: nextCity,
-    }));
-    setAutoFillTarget(null);
-  }, [autoFillTarget, cities, form.state]);
 
   useEffect(() => {
     const token = getSessionToken();
@@ -591,7 +517,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           payable amount appear below the form before the payment gateway opens.
         </p>
         <p className="muted">
-          Choose the state first, then select the exact city or suburb from the dropdown list.
+          Enter the pincode to auto-fill the state and city/suburb whenever that postal data is available.
         </p>
         <p className="muted">
           Product prices are inclusive of all taxes. Delivery charges are not included in the item
@@ -631,7 +557,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
               <select
                 value={form.state}
                 onChange={(event) => updateField("state", event.target.value)}
-                disabled={locationLoading}
+                disabled={locationLoading || states.length === 0}
               >
                 <option value="">{locationLoading && states.length === 0 ? "Loading states..." : "Select state"}</option>
                 {states.map((state) => (
@@ -644,20 +570,11 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             </label>
             <label className="field">
               <span>City / Suburb</span>
-              <select
+              <input
                 value={form.city}
                 onChange={(event) => updateField("city", event.target.value)}
-                disabled={!form.state || locationLoading}
-              >
-                <option value="">
-                  {!form.state ? "Select state first" : locationLoading ? "Loading cities..." : "Select city / suburb"}
-                </option>
-                {cityOptions.map((city) => (
-                  <option key={city.id} value={city.name}>
-                    {city.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="City or suburb will auto-fill from pincode"
+              />
               {liveFieldErrors.city ? <span className="field-error">{liveFieldErrors.city}</span> : null}
             </label>
           </div>
