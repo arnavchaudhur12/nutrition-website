@@ -1,4 +1,5 @@
 import json
+import logging
 from datetime import date
 from typing import Any, Optional
 
@@ -6,6 +7,8 @@ import httpx
 from fastapi import HTTPException, status
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class ShippingService:
@@ -70,6 +73,15 @@ class ShippingService:
         body = self._decode_body(response)
         if response.status_code >= 400:
             detail = self._extract_error_message(body) or "GenZLogix request failed."
+            logger.error(
+                "GenZLogix request failed | method=%s path=%s status=%s detail=%s response=%s payload=%s",
+                method,
+                path,
+                response.status_code,
+                detail,
+                json.dumps(body, ensure_ascii=True),
+                json.dumps(json_payload, ensure_ascii=True) if json_payload is not None else "{}",
+            )
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
 
         data = body.get("data")
