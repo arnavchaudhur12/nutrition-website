@@ -39,51 +39,61 @@ export function CartDrawer({ open, onClose, products }: CartDrawerProps) {
         ) : (
           enriched.map((item) => (
             <article key={`${item.productId}-${item.variantId}`} className="cart-item">
-              <div>
-                <h3>{item.product.fullName}</h3>
-                <p>
-                  {item.variant.weight} x {item.quantity}
-                </p>
-                {item.variant.stockStatus === "out_of_stock" ? (
-                  <p className="status-message error">Out of stock</p>
-                ) : item.quantity > item.variant.stockQuantity ? (
-                  <p className="status-message error">Only {item.variant.stockQuantity} item(s) available</p>
-                ) : (
-                  <p className="muted">
-                    {item.variant.discountPercentage}% off, inclusive of all taxes
+              <div className="cart-item-main">
+                <div className="cart-item-image-shell">
+                  <img
+                    src={item.product.images[0] ?? item.product.image}
+                    alt={item.product.fullName}
+                    className="cart-item-image"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="cart-item-copy">
+                  <h3>{item.product.fullName}</h3>
+                  <p>
+                    {item.variant.weight} x {item.quantity}
                   </p>
-                )}
-                <strong>Rs. {item.variant.sellingPrice * item.quantity}</strong>
-                <div className="cart-item-quantity-controls" aria-label={`Quantity for ${item.product.fullName}`}>
-                  <button
-                    type="button"
-                    className="quantity-stepper-button"
-                    aria-label={`Decrease quantity for ${item.product.fullName}`}
-                    onClick={() =>
-                      updateItemQuantity(item.productId, item.variantId, item.quantity - 1)
-                    }
-                  >
-                    -
-                  </button>
-                  <span className="cart-item-quantity-value">{item.quantity}</span>
-                  <button
-                    type="button"
-                    className="quantity-stepper-button"
-                    aria-label={`Increase quantity for ${item.product.fullName}`}
-                    onClick={() =>
-                      updateItemQuantity(
-                        item.productId,
-                        item.variantId,
-                        Math.min(item.variant.stockQuantity, item.quantity + 1)
-                      )
-                    }
-                    disabled={
-                      item.variant.stockStatus === "out_of_stock" ||
-                      item.quantity >= item.variant.stockQuantity
-                    }
-                  >
-                    +
-                  </button>
+                  {item.variant.stockStatus === "out_of_stock" ? (
+                    <p className="status-message error">Out of stock</p>
+                  ) : item.quantity > item.variant.stockQuantity ? (
+                    <p className="status-message error">Only {item.variant.stockQuantity} item(s) available</p>
+                  ) : (
+                    <p className="muted">
+                      {item.variant.discountPercentage}% off, inclusive of all taxes
+                    </p>
+                  )}
+                  <strong>Rs. {item.variant.sellingPrice * item.quantity}</strong>
+                  <div className="cart-item-quantity-controls" aria-label={`Quantity for ${item.product.fullName}`}>
+                    <button
+                      type="button"
+                      className="quantity-stepper-button"
+                      aria-label={`Decrease quantity for ${item.product.fullName}`}
+                      onClick={() =>
+                        updateItemQuantity(item.productId, item.variantId, item.quantity - 1)
+                      }
+                    >
+                      -
+                    </button>
+                    <span className="cart-item-quantity-value">{item.quantity}</span>
+                    <button
+                      type="button"
+                      className="quantity-stepper-button"
+                      aria-label={`Increase quantity for ${item.product.fullName}`}
+                      onClick={() =>
+                        updateItemQuantity(
+                          item.productId,
+                          item.variantId,
+                          Math.min(item.variant.stockQuantity, item.quantity + 1)
+                        )
+                      }
+                      disabled={
+                        item.variant.stockStatus === "out_of_stock" ||
+                        item.quantity >= item.variant.stockQuantity
+                      }
+                    >
+                      +
+                    </button>
+                  </div>
                 </div>
               </div>
               <button
