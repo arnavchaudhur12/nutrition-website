@@ -32,6 +32,7 @@ class Order(Base):
     shipment_status: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
     awb_number: Mapped[Optional[str]] = mapped_column(String(128), nullable=True, index=True)
     shipment_courier: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    shipment_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     shipment_label_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     shipment_estimated_delivery: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     shipment_tracking_history: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

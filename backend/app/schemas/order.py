@@ -228,6 +228,7 @@ class CustomerOrderShipmentRead(BaseModel):
     awb_number: Optional[str] = None
     status: Optional[str] = None
     courier: Optional[str] = None
+    message: Optional[str] = None
     label_url: Optional[str] = None
     estimated_delivery: Optional[str] = None
     error: Optional[str] = None

@@ -29,6 +29,8 @@ def run_startup_migrations(engine: Engine) -> None:
         statements.append("ALTER TABLE orders ADD COLUMN awb_number VARCHAR(128)")
     if "shipment_courier" not in existing_columns:
         statements.append("ALTER TABLE orders ADD COLUMN shipment_courier VARCHAR(120)")
+    if "shipment_message" not in existing_columns:
+        statements.append("ALTER TABLE orders ADD COLUMN shipment_message TEXT")
     if "shipment_label_url" not in existing_columns:
         statements.append("ALTER TABLE orders ADD COLUMN shipment_label_url TEXT")
     if "shipment_estimated_delivery" not in existing_columns:

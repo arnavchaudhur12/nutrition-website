@@ -242,6 +242,9 @@ function getShipmentTone(order: CustomerOrder): "pending" | "active" | "delivere
   if (order.shipment?.error) {
     return "error";
   }
+  if (status.includes("pending") || status.includes("created")) {
+    return "pending";
+  }
   if (status.includes("delivered")) {
     return "delivered";
   }
@@ -276,8 +279,10 @@ function getShipmentTimeline(order: CustomerOrder) {
     {
       label: "Shipment Created",
       detail: hasShipment
-        ? order.shipment?.order_id
-          ? `Shipment ${order.shipment.order_id} created.`
+        ? order.shipment?.message
+          ? order.shipment.message
+          : order.shipment?.order_id
+            ? `Shipment ${order.shipment.order_id} created.`
           : "Courier partner assignment is in progress."
         : "We are preparing your shipment request.",
       done: stepIndex >= 1,
@@ -1599,6 +1604,8 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                       <p>
                         {order.shipment?.estimated_delivery
                           ? `Estimated delivery: ${formatShipmentDate(order.shipment.estimated_delivery)}`
+                          : order.shipment?.message
+                            ? order.shipment.message
                           : order.shipment?.error
                             ? order.shipment.error
                             : "Real-time courier events will appear here once assigned."}
@@ -1616,7 +1623,7 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
                     </div>
                     <div className="shipment-meta-card">
                       <span>AWB</span>
-                      <strong>{order.shipment?.awb_number ?? "Awaiting assignment"}</strong>
+                      <strong>{order.shipment?.awb_number ?? "Will appear after courier booking"}</strong>
                     </div>
                     <div className="shipment-meta-card">
                       <span>Synced</span>

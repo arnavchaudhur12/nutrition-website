@@ -517,6 +517,7 @@ class OrderService:
                 awb_number=order.awb_number,
                 status=order.shipment_status,
                 courier=order.shipment_courier,
+                message=order.shipment_message,
                 label_url=order.shipment_label_url,
                 estimated_delivery=order.shipment_estimated_delivery.isoformat()
                 if order.shipment_estimated_delivery
@@ -659,6 +660,10 @@ class OrderService:
         order.shipment_order_id = self._string_or_none(shipment_data.get("order_id"))
         order.shipment_status = self._string_or_none(shipment_data.get("status")) or "PENDING"
         order.awb_number = self._string_or_none(shipment_data.get("awb_number"))
+        order.shipment_courier = self._string_or_none(
+            shipment_data.get("assigned_courier") or shipment_data.get("courier")
+        )
+        order.shipment_message = self._string_or_none(shipment_data.get("message"))
         order.shipment_label_url = self._string_or_none(shipment_data.get("label_url"))
         order.shipment_created_at = self._parse_iso_datetime(shipment_data.get("created_at"))
         order.shipment_error = None
@@ -666,7 +671,7 @@ class OrderService:
         self.db.commit()
         self.db.refresh(order)
 
-        if order.awb_number:
+        if order.awb_number and order.shipment_status and order.shipment_status.lower() not in {"pending", "created"}:
             self._refresh_tracking_for_order_best_effort(order)
 
     def _apply_tracking_data(self, order: Order, tracking_data: dict[str, Any]) -> None:
@@ -675,6 +680,7 @@ class OrderService:
         order.awb_number = self._string_or_none(tracking_data.get("awb_number")) or order.awb_number
         order.shipment_status = self._string_or_none(tracking_data.get("current_status")) or order.shipment_status
         order.shipment_courier = self._string_or_none(tracking_data.get("courier"))
+        order.shipment_message = None
         order.shipment_estimated_delivery = self._parse_date_value(tracking_data.get("estimated_delivery"))
         order.shipment_last_synced_at = datetime.utcnow()
         order.shipment_error = None

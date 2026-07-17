@@ -28,6 +28,7 @@ export type CustomerOrder = {
     awb_number?: string | null;
     status?: string | null;
     courier?: string | null;
+    message?: string | null;
     label_url?: string | null;
     estimated_delivery?: string | null;
     error?: string | null;
