@@ -168,6 +168,16 @@ class RazorpayFailureRequest(BaseModel):
     description: Optional[str] = None
 
 
+class ServiceabilityRead(BaseModel):
+    is_serviceable: bool
+    pickup_pincode: str
+    delivery_pincode: str
+    estimated_delivery_days: Optional[int] = None
+    cod_available: Optional[bool] = None
+    available_couriers: list[str] = Field(default_factory=list)
+    min_rate: Optional[float] = None
+
+
 class OrderRead(BaseModel):
     order_number: str
     status: str

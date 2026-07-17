@@ -1,7 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { getCitiesOfState, getStatesOfCountry } from "@countrystatecity/countries-browser";
+import type { ICity, IState } from "@countrystatecity/countries-browser";
 import { useAuth } from "../context/AuthContext";
 import { useCart } from "../context/CartContext";
-import { createPaymentOrder, notifyPaymentFailure, previewCoupon, verifyPayment } from "../services/payments";
+import {
+  checkDeliveryServiceability,
+  createPaymentOrder,
+  notifyPaymentFailure,
+  previewCoupon,
+  verifyPayment,
+} from "../services/payments";
 import type { Product } from "../types";
 
 type CheckoutSectionProps = {
@@ -80,6 +88,12 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const { user } = useAuth();
   const { items, clearCart } = useCart();
   const [form, setForm] = useState(initialFormState);
+  const [states, setStates] = useState<IState[]>([]);
+  const [cities, setCities] = useState<ICity[]>([]);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [serviceabilityMessage, setServiceabilityMessage] = useState("");
+  const [isServiceable, setIsServiceable] = useState<boolean | null>(null);
+  const lastRejectedPincode = useRef("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusType, setStatusType] = useState<"success" | "error" | "">("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -119,9 +133,20 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   const unavailableItems = enrichedCart.filter(
     (item) => item.variant.stockStatus === "out_of_stock" || item.quantity > item.variant.stockQuantity
   );
+  const isCheckoutBlocked =
+    isSubmitting ||
+    unavailableItems.length > 0 ||
+    hasLiveFieldErrors ||
+    locationLoading ||
+    (form.pincode.trim().length === 6 && isServiceable === false);
 
   const updateField = (field: keyof typeof form, value: string) => {
-    setForm((current) => ({ ...current, [field]: value }));
+    setForm((current) => {
+      if (field === "state") {
+        return { ...current, state: value, city: "" };
+      }
+      return { ...current, [field]: value };
+    });
     setFieldErrors((current) => {
       if (!current[field]) {
         return current;
@@ -130,6 +155,10 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       delete next[field];
       return next;
     });
+    if (field === "pincode") {
+      setIsServiceable(null);
+      setServiceabilityMessage("");
+    }
   };
 
   const showStatus = (type: "success" | "error", message: string) => {
@@ -174,6 +203,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     if (totalAmount < 1) {
       return "Minimum payment amount is Rs. 1.";
     }
+    if (form.pincode.trim().length === 6 && isServiceable === false) {
+      return "PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION";
+    }
     return "";
   };
 
@@ -187,6 +219,9 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
     const validationError = validateCheckout();
     if (validationError) {
       showStatus("error", validationError);
+      if (validationError === "PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION") {
+        window.alert("PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION");
+      }
       paymentFlowLock.current = false;
       return;
     }
@@ -210,7 +245,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         delivery_address: form.deliveryAddress,
         pincode: form.pincode,
         city: form.city,
-        state: form.state,
+        state: states.find((state) => state.iso2 === form.state)?.name ?? form.state,
         comments: form.comments,
         coupon_code: form.couponCode.trim() || undefined,
         items: enrichedCart.map((item) => ({
@@ -264,6 +299,8 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             clearCart();
             setCouponDiscountPercent(0);
             setCouponStatus("");
+            setIsServiceable(null);
+            setServiceabilityMessage("");
             setForm(initialFormState);
             window.alert(
               "Thank you for your purchase from Lagads Nutrition! Please stay on this website for a couple of seconds and do not refresh."
@@ -312,6 +349,107 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
   };
 
   useEffect(() => {
+    let cancelled = false;
+    setLocationLoading(true);
+    void getStatesOfCountry("IN")
+      .then((result) => {
+        if (cancelled) return;
+        setStates([...result].sort((left, right) => left.name.localeCompare(right.name)));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        showStatus("error", "Unable to load Indian states right now.");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLocationLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!form.state) {
+      setCities([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLocationLoading(true);
+    void getCitiesOfState("IN", form.state)
+      .then((result) => {
+        if (cancelled) return;
+        setCities([...result].sort((left, right) => left.name.localeCompare(right.name)));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setCities([]);
+        showStatus("error", "Unable to load cities for the selected state.");
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setLocationLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.state]);
+
+  useEffect(() => {
+    const token = getSessionToken();
+    const cleanedPincode = form.pincode.trim();
+    if (!indianPincodeRegex.test(cleanedPincode)) {
+      setIsServiceable(null);
+      setServiceabilityMessage("");
+      return;
+    }
+
+    let cancelled = false;
+    void checkDeliveryServiceability(cleanedPincode, token || undefined)
+      .then((result) => {
+        if (cancelled) return;
+        setIsServiceable(result.is_serviceable);
+        if (!result.is_serviceable) {
+          setServiceabilityMessage("PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION");
+          if (lastRejectedPincode.current !== cleanedPincode) {
+            window.alert("PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION");
+            lastRejectedPincode.current = cleanedPincode;
+          }
+          return;
+        }
+        const eta =
+          typeof result.estimated_delivery_days === "number"
+            ? `Pincode is serviceable. Estimated delivery in ${result.estimated_delivery_days} day${result.estimated_delivery_days === 1 ? "" : "s"}.`
+            : "Pincode is serviceable.";
+        setServiceabilityMessage(eta);
+        lastRejectedPincode.current = "";
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        const message =
+          error instanceof Error ? error.message : "Unable to verify delivery serviceability.";
+        if (message === "PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION") {
+          setIsServiceable(false);
+          setServiceabilityMessage(message);
+          if (lastRejectedPincode.current !== cleanedPincode) {
+            window.alert("PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION");
+            lastRejectedPincode.current = cleanedPincode;
+          }
+          return;
+        }
+        setIsServiceable(null);
+        setServiceabilityMessage(message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [form.pincode]);
+
+  useEffect(() => {
     const token = getSessionToken();
     const couponCode = form.couponCode.trim().toUpperCase();
     if (!couponCode) {
@@ -357,8 +495,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           payable amount appear below the form before the payment gateway opens.
         </p>
         <p className="muted">
-          City and state are collected here so your delivery timeline can begin automatically after
-          a successful payment.
+          Choose the state first, then select the exact city or suburb from the dropdown list.
         </p>
         <p className="muted">
           Product prices are inclusive of all taxes. Delivery charges are not included in the item
@@ -373,116 +510,137 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
 
       <div className="checkout-form">
         <form className="checkout-details-card">
+          <label className="field">
+            <span>Full Name</span>
+            <input
+              placeholder="Enter full name"
+              value={form.customerName}
+              onChange={(event) => updateField("customerName", event.target.value)}
+            />
+            {liveFieldErrors.customerName ? <span className="field-error">{liveFieldErrors.customerName}</span> : null}
+          </label>
+          <label className="field">
+            <span>Delivery Address</span>
+            <textarea
+              placeholder="House number, street, locality, landmark"
+              rows={4}
+              value={form.deliveryAddress}
+              onChange={(event) => updateField("deliveryAddress", event.target.value)}
+            />
+            {liveFieldErrors.deliveryAddress ? <span className="field-error">{liveFieldErrors.deliveryAddress}</span> : null}
+          </label>
+          <div className="checkout-location-grid">
             <label className="field">
-              <span>Full Name</span>
-              <input
-                placeholder="Enter full name"
-                value={form.customerName}
-                onChange={(event) => updateField("customerName", event.target.value)}
-              />
-              {liveFieldErrors.customerName ? <span className="field-error">{liveFieldErrors.customerName}</span> : null}
+              <span>State</span>
+              <select
+                value={form.state}
+                onChange={(event) => updateField("state", event.target.value)}
+                disabled={locationLoading}
+              >
+                <option value="">{locationLoading && states.length === 0 ? "Loading states..." : "Select state"}</option>
+                {states.map((state) => (
+                  <option key={state.iso2} value={state.iso2}>
+                    {state.name}
+                  </option>
+                ))}
+              </select>
+              {liveFieldErrors.state ? <span className="field-error">{liveFieldErrors.state}</span> : null}
             </label>
             <label className="field">
-              <span>Delivery Address</span>
-              <textarea
-                placeholder="House number, street, locality, landmark"
-                rows={4}
-                value={form.deliveryAddress}
-                onChange={(event) => updateField("deliveryAddress", event.target.value)}
-              />
-              {liveFieldErrors.deliveryAddress ? <span className="field-error">{liveFieldErrors.deliveryAddress}</span> : null}
+              <span>City / Suburb</span>
+              <select
+                value={form.city}
+                onChange={(event) => updateField("city", event.target.value)}
+                disabled={!form.state || locationLoading}
+              >
+                <option value="">
+                  {!form.state ? "Select state first" : locationLoading ? "Loading cities..." : "Select city / suburb"}
+                </option>
+                {cities.map((city) => (
+                  <option key={city.id} value={city.name}>
+                    {city.name}
+                  </option>
+                ))}
+              </select>
+              {liveFieldErrors.city ? <span className="field-error">{liveFieldErrors.city}</span> : null}
             </label>
-            <div className="checkout-location-grid">
-              <label className="field">
-                <span>City</span>
-                <input
-                  placeholder="Enter city"
-                  value={form.city}
-                  onChange={(event) => updateField("city", event.target.value)}
-                />
-                {liveFieldErrors.city ? <span className="field-error">{liveFieldErrors.city}</span> : null}
-              </label>
-              <label className="field">
-                <span>State</span>
-                <input
-                  placeholder="Enter state"
-                  value={form.state}
-                  onChange={(event) => updateField("state", event.target.value)}
-                />
-                {liveFieldErrors.state ? <span className="field-error">{liveFieldErrors.state}</span> : null}
-              </label>
-            </div>
-            <label className="field">
-              <span>Pincode</span>
-              <input
-                inputMode="numeric"
-                maxLength={6}
-                placeholder="Enter delivery pincode"
-                value={form.pincode}
-                onChange={(event) => updateField("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))}
-              />
-              {liveFieldErrors.pincode ? <span className="field-error">{liveFieldErrors.pincode}</span> : null}
-            </label>
-            <label className="field">
-              <span>Phone Number</span>
-              <input
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="Primary mobile number"
-                value={form.phoneNumber}
-                onChange={(event) => updateField("phoneNumber", event.target.value.replace(/\D/g, "").slice(0, 10))}
-              />
-              {liveFieldErrors.phoneNumber ? <span className="field-error">{liveFieldErrors.phoneNumber}</span> : null}
-            </label>
-            <label className="field">
-              <span>Email Address</span>
-              <input
-                type="email"
-                placeholder="your@email.com"
-                value={form.email}
-                onChange={(event) => updateField("email", event.target.value.trim())}
-              />
-              {liveFieldErrors.email ? <span className="field-error">{liveFieldErrors.email}</span> : null}
-            </label>
-            <label className="field">
-              <span>Alternative Phone Number</span>
-              <input
-                inputMode="numeric"
-                maxLength={10}
-                placeholder="Optional alternate mobile number"
-                value={form.alternatePhoneNumber}
-                onChange={(event) =>
-                  updateField("alternatePhoneNumber", event.target.value.replace(/\D/g, "").slice(0, 10))
-                }
-              />
-              {liveFieldErrors.alternatePhoneNumber ? (
-                <span className="field-error">{liveFieldErrors.alternatePhoneNumber}</span>
-              ) : null}
-            </label>
-            <label className="field">
-              <span>Coupon Code (Optional)</span>
-              <input
-                placeholder="Enter 6-character coupon"
-                value={form.couponCode}
-                onChange={(event) => updateField("couponCode", event.target.value.toUpperCase())}
-                maxLength={6}
-              />
-            </label>
-            <label className="field">
-              <span>Comments or Special Request</span>
-              <textarea
-                placeholder="Optional delivery notes or request"
-                rows={3}
-                value={form.comments}
-                onChange={(event) => updateField("comments", event.target.value)}
-              />
-            </label>
-            {couponStatus ? (
-              <p className={`status-message ${couponDiscountPercent > 0 ? "success" : "error"}`}>
-                {couponStatus}
-              </p>
+          </div>
+          <label className="field">
+            <span>Pincode</span>
+            <input
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="Enter delivery pincode"
+              value={form.pincode}
+              onChange={(event) => updateField("pincode", event.target.value.replace(/\D/g, "").slice(0, 6))}
+            />
+            {liveFieldErrors.pincode ? <span className="field-error">{liveFieldErrors.pincode}</span> : null}
+          </label>
+          {serviceabilityMessage ? (
+            <p className={`status-message ${isServiceable === false ? "error" : "success"}`}>
+              {serviceabilityMessage}
+            </p>
+          ) : null}
+          <label className="field">
+            <span>Phone Number</span>
+            <input
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="Primary mobile number"
+              value={form.phoneNumber}
+              onChange={(event) => updateField("phoneNumber", event.target.value.replace(/\D/g, "").slice(0, 10))}
+            />
+            {liveFieldErrors.phoneNumber ? <span className="field-error">{liveFieldErrors.phoneNumber}</span> : null}
+          </label>
+          <label className="field">
+            <span>Email Address</span>
+            <input
+              type="email"
+              placeholder="your@email.com"
+              value={form.email}
+              onChange={(event) => updateField("email", event.target.value.trim())}
+            />
+            {liveFieldErrors.email ? <span className="field-error">{liveFieldErrors.email}</span> : null}
+          </label>
+          <label className="field">
+            <span>Alternative Phone Number</span>
+            <input
+              inputMode="numeric"
+              maxLength={10}
+              placeholder="Optional alternate mobile number"
+              value={form.alternatePhoneNumber}
+              onChange={(event) =>
+                updateField("alternatePhoneNumber", event.target.value.replace(/\D/g, "").slice(0, 10))
+              }
+            />
+            {liveFieldErrors.alternatePhoneNumber ? (
+              <span className="field-error">{liveFieldErrors.alternatePhoneNumber}</span>
             ) : null}
-          </form>
+          </label>
+          <label className="field">
+            <span>Coupon Code (Optional)</span>
+            <input
+              placeholder="Enter 6-character coupon"
+              value={form.couponCode}
+              onChange={(event) => updateField("couponCode", event.target.value.toUpperCase())}
+              maxLength={6}
+            />
+          </label>
+          <label className="field">
+            <span>Comments or Special Request</span>
+            <textarea
+              placeholder="Optional delivery notes or request"
+              rows={3}
+              value={form.comments}
+              onChange={(event) => updateField("comments", event.target.value)}
+            />
+          </label>
+          {couponStatus ? (
+            <p className={`status-message ${couponDiscountPercent > 0 ? "success" : "error"}`}>
+              {couponStatus}
+            </p>
+          ) : null}
+        </form>
 
         <div className="checkout-order-card">
           <div className="checkout-order-header">
@@ -572,7 +730,7 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
             type="button"
             className="pill pill-primary"
             onClick={handlePayment}
-            disabled={isSubmitting || unavailableItems.length > 0 || hasLiveFieldErrors}
+            disabled={isCheckoutBlocked}
           >
             {isSubmitting ? "Opening Payment..." : "Continue to Payment Gateway"}
           </button>

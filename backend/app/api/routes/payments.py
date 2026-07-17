@@ -12,6 +12,7 @@ from app.schemas.order import (
     RazorpayOrderRead,
     RazorpayVerifyRead,
     RazorpayVerifyRequest,
+    ServiceabilityRead,
 )
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
@@ -55,6 +56,17 @@ def preview_coupon_discount(
     _ = current_user
     discount_percent = OrderService(db).coupon_service.get_discount_percent(code)
     return {"code": code.strip().upper(), "discount_percent": discount_percent}
+
+
+@router.get("/serviceability", response_model=ServiceabilityRead)
+def check_delivery_serviceability(
+    delivery_pincode: str,
+    db: Session = Depends(get_db),
+    current_user: Optional[User] = Depends(get_current_user_optional),
+) -> dict[str, object]:
+    _ = current_user
+    _ = db
+    return OrderService(db).check_delivery_serviceability(delivery_pincode)
 
 
 @router.post("/payments/webhook")

@@ -23,6 +23,19 @@ class ShippingService:
     def track_shipment(self, awb_number: str) -> dict[str, Any]:
         return self._request("GET", f"/shipments/{awb_number}/track")
 
+    def check_serviceability(self, delivery_pincode: str) -> dict[str, Any]:
+        pickup_pincode = self.settings.genzlogix_pickup_pincode.strip()
+        if not pickup_pincode:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="GenZLogix pickup pincode is not configured.",
+            )
+        path = (
+            f"/serviceability?pickup_pincode={pickup_pincode}"
+            f"&delivery_pincode={delivery_pincode.strip()}"
+        )
+        return self._request("GET", path)
+
     def _request(
         self,
         method: str,

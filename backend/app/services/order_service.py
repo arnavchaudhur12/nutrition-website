@@ -77,6 +77,7 @@ class OrderService:
         receipt = payload.receipt
 
         if payload.items:
+            self._ensure_delivery_serviceable(payload.pincode or "")
             if current_user and payload.email and str(payload.email).lower() != current_user.email.lower():
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
@@ -125,6 +126,22 @@ class OrderService:
         return {
             **payment_order,
             "app_order_number": app_order_number,
+        }
+
+    def check_delivery_serviceability(self, delivery_pincode: str) -> dict[str, object]:
+        data = self._ensure_delivery_serviceable(delivery_pincode)
+        return {
+            "is_serviceable": bool(data.get("is_serviceable")),
+            "pickup_pincode": str(data.get("pickup_pincode") or ""),
+            "delivery_pincode": str(data.get("delivery_pincode") or delivery_pincode.strip()),
+            "estimated_delivery_days": self._int_or_none(data.get("estimated_delivery_days")),
+            "cod_available": self._bool_or_none(data.get("cod_available")),
+            "available_couriers": [
+                str(item).strip()
+                for item in data.get("available_couriers", [])
+                if str(item).strip()
+            ] if isinstance(data.get("available_couriers"), list) else [],
+            "min_rate": self._float_or_none(data.get("min_rate")),
         }
 
     def _get_coupon_discount_percent(self, coupon_code: Optional[str] = None) -> int:
@@ -526,6 +543,28 @@ class OrderService:
             shipment=shipment,
         )
 
+    def _ensure_delivery_serviceable(self, delivery_pincode: str) -> dict[str, Any]:
+        cleaned_pincode = delivery_pincode.strip()
+        if len(cleaned_pincode) != 6 or not cleaned_pincode.isdigit():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Enter a valid 6-digit Indian pincode.",
+            )
+        if not self.shipping_service.is_configured():
+            return {
+                "is_serviceable": True,
+                "pickup_pincode": self.settings.genzlogix_pickup_pincode,
+                "delivery_pincode": cleaned_pincode,
+            }
+
+        data = self.shipping_service.check_serviceability(cleaned_pincode)
+        if not bool(data.get("is_serviceable")):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="PINCODE IS NOT YET IN OUR SERVICEBALE LOCATION",
+            )
+        return data
+
     def _create_shipment_for_paid_order_best_effort(self, order: Order) -> None:
         if order.payment_status != "paid":
             return
@@ -649,6 +688,26 @@ class OrderService:
             return None
         cleaned = str(value).strip()
         return cleaned or None
+
+    @staticmethod
+    def _int_or_none(value: Any) -> Optional[int]:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _float_or_none(value: Any) -> Optional[float]:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _bool_or_none(value: Any) -> Optional[bool]:
+        if value is None:
+            return None
+        return bool(value)
 
     @staticmethod
     def _parse_iso_datetime(value: Any) -> Optional[datetime]:

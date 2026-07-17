@@ -52,6 +52,16 @@ export type CouponPreview = {
   discount_percent: number;
 };
 
+export type DeliveryServiceability = {
+  is_serviceable: boolean;
+  pickup_pincode: string;
+  delivery_pincode: string;
+  estimated_delivery_days?: number | null;
+  cod_available?: boolean | null;
+  available_couriers: string[];
+  min_rate?: number | null;
+};
+
 async function parseError(response: Response, fallback: string): Promise<Error> {
   const body = (await response.json().catch(() => null)) as { detail?: string } | null;
   return new Error(body?.detail ?? fallback);
@@ -132,4 +142,23 @@ export async function previewCoupon(code: string, token?: string): Promise<Coupo
   }
 
   return (await response.json()) as CouponPreview;
+}
+
+export async function checkDeliveryServiceability(
+  deliveryPincode: string,
+  token?: string
+): Promise<DeliveryServiceability> {
+  const response = await fetch(
+    `${API_BASE_URL}/serviceability?delivery_pincode=${encodeURIComponent(deliveryPincode)}`,
+    {
+      method: "GET",
+      headers: authHeaders(token),
+    }
+  );
+
+  if (!response.ok) {
+    throw await parseError(response, "Unable to verify delivery serviceability.");
+  }
+
+  return (await response.json()) as DeliveryServiceability;
 }
