@@ -1,5 +1,5 @@
 type IconProps = {
-  name: "menu" | "account" | "cart" | "close";
+  name: "menu" | "account" | "cart" | "close" | "box" | "truck";
 };
 
 export function Icon({ name }: IconProps) {
@@ -7,9 +7,10 @@ export function Icon({ name }: IconProps) {
     menu: "☰",
     account: "◯",
     cart: "👜",
-    close: "✕"
+    close: "✕",
+    box: "▣",
+    truck: "🚚"
   };
 
   return <span aria-hidden="true">{icons[name]}</span>;
 }
-

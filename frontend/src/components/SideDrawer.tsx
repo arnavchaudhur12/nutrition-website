@@ -9,7 +9,7 @@ type SideDrawerProps = {
   onClose: () => void;
 };
 
-type DrawerView = "menu" | "orders";
+type DrawerView = "menu" | "orders-menu" | "my-orders" | "track-orders";
 
 const menuItems: Array<{ label: string; href: string }> = [
   { label: "Peanut Butter", href: "#products" },
@@ -31,7 +31,7 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
       return;
     }
 
-    if (!user || view !== "orders") {
+    if (!user || (view !== "my-orders" && view !== "track-orders")) {
       return;
     }
 
@@ -77,10 +77,22 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
     }
   }, [open]);
 
+  const trackableOrders = orders.filter((order) =>
+    Boolean(order.shipment?.order_id || order.shipment?.awb_number || order.shipment?.status || order.payment_status === "paid")
+  );
+
   return (
     <aside className={`drawer ${open ? "open" : ""}`}>
       <div className="drawer-header">
-        <h2>{view === "orders" ? "My Orders" : "Explore"}</h2>
+        <h2>
+          {view === "my-orders"
+            ? "My Orders"
+            : view === "track-orders"
+              ? "Track Order"
+              : view === "orders-menu"
+                ? "Orders"
+                : "Explore"}
+        </h2>
         <button className="icon-button" onClick={onClose} aria-label="Close menu">
           <Icon name="close" />
         </button>
@@ -94,16 +106,37 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
               </a>
             ))}
             {user ? (
-              <button type="button" className="text-link-button" onClick={() => setView("orders")}>
+              <button type="button" className="text-link-button" onClick={() => setView("orders-menu")}>
                 My Orders
               </button>
             ) : null}
           </nav>
         </>
       ) : null}
-      {view === "orders" ? (
+      {view === "orders-menu" ? (
         <div className="drawer-orders-shell">
           <button type="button" className="text-button" onClick={() => setView("menu")}>
+            Back
+          </button>
+          <div className="drawer-orders-grid">
+            <button type="button" className="drawer-order-tile" onClick={() => setView("my-orders")}>
+              <span className="drawer-order-tile-icon">
+                <Icon name="box" />
+              </span>
+              <span>My Orders</span>
+            </button>
+            <button type="button" className="drawer-order-tile" onClick={() => setView("track-orders")}>
+              <span className="drawer-order-tile-icon">
+                <Icon name="truck" />
+              </span>
+              <span>Track Order</span>
+            </button>
+          </div>
+        </div>
+      ) : null}
+      {view === "my-orders" ? (
+        <div className="drawer-orders-shell">
+          <button type="button" className="text-button" onClick={() => setView("orders-menu")}>
             Back
           </button>
           <CustomerOrdersSection
@@ -111,6 +144,20 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
             loading={ordersLoading}
             error={ordersError}
             title="My Orders"
+          />
+        </div>
+      ) : null}
+      {view === "track-orders" ? (
+        <div className="drawer-orders-shell">
+          <button type="button" className="text-button" onClick={() => setView("orders-menu")}>
+            Back
+          </button>
+          <CustomerOrdersSection
+            orders={trackableOrders}
+            loading={ordersLoading}
+            error={ordersError}
+            title="Track Order"
+            emptyMessage="No trackable shipments are available yet."
           />
         </div>
       ) : null}

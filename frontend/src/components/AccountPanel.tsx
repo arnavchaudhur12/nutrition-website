@@ -357,7 +357,9 @@ export function AccountPanel({ open, onClose, onCatalogChange, onHeroChange }: A
         setView("admin");
         setMessage("Admin login successful. Dashboard loaded.");
       } else {
+        setView("menu");
         setMessage("Login successful. Your customer session is ready.");
+        onClose();
       }
     } catch (authError) {
       setError(authError instanceof Error ? authError.message : "Login failed.");
