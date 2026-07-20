@@ -625,7 +625,7 @@ class OrderService:
         self._apply_tracking_data(order, tracking_data)
 
     def _build_shipping_order_payload(self, order: Order) -> dict[str, Any]:
-        total_weight = round(sum(self._parse_weight_kg(item.variant_label) * item.quantity for item in order.items), 3)
+        package_details = self._build_shipping_package_details(order)
         return {
             "order_reference": order.order_number,
             "payment_mode": "PREPAID",
@@ -651,22 +651,50 @@ class OrderService:
                 "state": order.state,
                 "pincode": order.pincode,
             },
-            "package": {
-                "weight_kg": total_weight or 0.5,
-                "length_cm": self.settings.genzlogix_default_length_cm,
-                "breadth_cm": self.settings.genzlogix_default_breadth_cm,
-                "height_cm": self.settings.genzlogix_default_height_cm,
-            },
+            "package": package_details,
             "items": [
                 {
                     "name": self._get_item_display_name(item),
                     "sku": item.product_slug or item.product_name[:20].upper().replace(" ", "-"),
                     "qty": item.quantity,
-                    "price": float(item.unit_price),
+                    "price": self._get_shipping_item_price(item),
                 }
                 for item in order.items
             ],
         }
+
+    def _build_shipping_package_details(self, order: Order) -> dict[str, float]:
+        if len(order.items) == 1:
+            item = order.items[0]
+            normalized_label = self._normalize_variant_label(item.variant_label)
+            if item.quantity == 1 and normalized_label == "500g":
+                return {
+                    "weight_kg": 0.5,
+                    "length_cm": 13.0,
+                    "breadth_cm": 13.0,
+                    "height_cm": 15.0,
+                }
+            if item.quantity == 1 and normalized_label == "1kg":
+                return {
+                    "weight_kg": 1.0,
+                    "length_cm": 14.0,
+                    "breadth_cm": 14.0,
+                    "height_cm": 17.0,
+                }
+
+        total_weight = round(sum(self._parse_weight_kg(item.variant_label) * item.quantity for item in order.items), 3)
+        return {
+            "weight_kg": total_weight or 0.5,
+            "length_cm": float(self.settings.genzlogix_default_length_cm),
+            "breadth_cm": float(self.settings.genzlogix_default_breadth_cm),
+            "height_cm": float(self.settings.genzlogix_default_height_cm),
+        }
+
+    def _get_shipping_item_price(self, item: OrderItem) -> float:
+        normalized_label = self._normalize_variant_label(item.variant_label)
+        if item.quantity == 1 and normalized_label in {"500g", "1kg"}:
+            return 999.0
+        return float(item.unit_price)
 
     def _apply_shipment_creation_data(self, order: Order, shipment_data: dict[str, Any]) -> None:
         order.shipment_provider = "GenZLogix"
@@ -737,7 +765,7 @@ class OrderService:
 
     @staticmethod
     def _parse_weight_kg(label: str) -> float:
-        cleaned = (label or "").strip().lower()
+        cleaned = OrderService._normalize_variant_label(label)
         try:
             if cleaned.endswith("kg"):
                 return float(cleaned[:-2].strip() or 0)
@@ -747,6 +775,10 @@ class OrderService:
         except ValueError:
             return 0.5
         return 0.5
+
+    @staticmethod
+    def _normalize_variant_label(label: str) -> str:
+        return "".join((label or "").strip().lower().split())
 
     @staticmethod
     def _string_or_none(value: Any) -> Optional[str]:
