@@ -792,6 +792,25 @@ main {
   cursor: pointer;
 }
 
+.drawer-section {
+  display: grid;
+  gap: 0.9rem;
+  margin-top: 1.4rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid var(--border);
+}
+
+.drawer-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.drawer-section-header h3 {
+  margin: 0;
+}
+
 .newsletter-box {
   align-items: center;
 }
