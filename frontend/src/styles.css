@@ -811,6 +811,16 @@ main {
   margin: 0;
 }
 
+.drawer-orders-shell {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.drawer-orders-shell .drawer-section {
+  margin-top: 0;
+}
+
 .newsletter-box {
   align-items: center;
 }

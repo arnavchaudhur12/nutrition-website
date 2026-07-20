@@ -9,6 +9,8 @@ type SideDrawerProps = {
   onClose: () => void;
 };
 
+type DrawerView = "menu" | "orders";
+
 const menuItems: Array<{ label: string; href: string }> = [
   { label: "Peanut Butter", href: "#products" },
   { label: "About Us", href: "#about-us" },
@@ -19,12 +21,17 @@ const menuItems: Array<{ label: string; href: string }> = [
 
 export function SideDrawer({ open, onClose }: SideDrawerProps) {
   const { user } = useAuth();
+  const [view, setView] = useState<DrawerView>("menu");
   const [orders, setOrders] = useState<CustomerOrder[]>([]);
   const [ordersLoading, setOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState("");
 
   useEffect(() => {
-    if (!open || !user) {
+    if (!open) {
+      return;
+    }
+
+    if (!user || view !== "orders") {
       return;
     }
 
@@ -62,30 +69,50 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
     return () => {
       active = false;
     };
-  }, [open, user]);
+  }, [open, user, view]);
+
+  useEffect(() => {
+    if (!open) {
+      setView("menu");
+    }
+  }, [open]);
 
   return (
     <aside className={`drawer ${open ? "open" : ""}`}>
       <div className="drawer-header">
-        <h2>Explore</h2>
+        <h2>{view === "orders" ? "My Orders" : "Explore"}</h2>
         <button className="icon-button" onClick={onClose} aria-label="Close menu">
           <Icon name="close" />
         </button>
       </div>
-      <nav className="drawer-nav">
-        {menuItems.map((item) => (
-          <a key={item.label} href={item.href} onClick={onClose}>
-            {item.label}
-          </a>
-        ))}
-      </nav>
-      {user ? (
-        <CustomerOrdersSection
-          orders={orders}
-          loading={ordersLoading}
-          error={ordersError}
-          title="My Orders"
-        />
+      {view === "menu" ? (
+        <>
+          <nav className="drawer-nav">
+            {menuItems.map((item) => (
+              <a key={item.label} href={item.href} onClick={onClose}>
+                {item.label}
+              </a>
+            ))}
+            {user ? (
+              <button type="button" className="text-link-button" onClick={() => setView("orders")}>
+                My Orders
+              </button>
+            ) : null}
+          </nav>
+        </>
+      ) : null}
+      {view === "orders" ? (
+        <div className="drawer-orders-shell">
+          <button type="button" className="text-button" onClick={() => setView("menu")}>
+            Back
+          </button>
+          <CustomerOrdersSection
+            orders={orders}
+            loading={ordersLoading}
+            error={ordersError}
+            title="My Orders"
+          />
+        </div>
       ) : null}
     </aside>
   );
