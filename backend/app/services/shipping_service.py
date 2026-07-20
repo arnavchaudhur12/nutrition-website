@@ -26,6 +26,31 @@ class ShippingService:
     def track_shipment(self, awb_number: str) -> dict[str, Any]:
         return self._request("GET", f"/shipments/{awb_number}/track")
 
+    def list_orders(
+        self,
+        *,
+        page: int = 1,
+        limit: int = 100,
+        status_filter: Optional[str] = None,
+    ) -> list[dict[str, Any]]:
+        query = f"/orders/list?page={page}&limit={limit}"
+        if status_filter:
+            query = f"{query}&status={status_filter.strip()}"
+        body = self._request_body("GET", query)
+        data = body.get("data")
+        if not isinstance(data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Invalid GenZLogix orders list response.",
+            )
+        orders = data.get("orders")
+        if not isinstance(orders, list):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Invalid GenZLogix orders list response.",
+            )
+        return [item for item in orders if isinstance(item, dict)]
+
     def check_serviceability(self, delivery_pincode: str) -> dict[str, Any]:
         pickup_pincode = self.settings.genzlogix_pickup_pincode.strip()
         if not pickup_pincode:
@@ -40,6 +65,21 @@ class ShippingService:
         return self._request("GET", path)
 
     def _request(
+        self,
+        method: str,
+        path: str,
+        json_payload: Optional[dict[str, Any]] = None,
+    ) -> dict[str, Any]:
+        body = self._request_body(method, path, json_payload=json_payload)
+        data = body.get("data")
+        if not body.get("success") or not isinstance(data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Invalid GenZLogix response.",
+            )
+        return data
+
+    def _request_body(
         self,
         method: str,
         path: str,
@@ -83,14 +123,7 @@ class ShippingService:
                 json.dumps(json_payload, ensure_ascii=True) if json_payload is not None else "{}",
             )
             raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=detail)
-
-        data = body.get("data")
-        if not body.get("success") or not isinstance(data, dict):
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Invalid GenZLogix response.",
-            )
-        return data
+        return body
 
     @staticmethod
     def _decode_body(response: httpx.Response) -> dict[str, Any]:

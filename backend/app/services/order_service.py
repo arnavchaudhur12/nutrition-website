@@ -590,7 +590,15 @@ class OrderService:
         self._apply_shipment_creation_data(order, shipment_data)
 
     def _refresh_tracking_for_order_best_effort(self, order: Order) -> None:
-        if not order.awb_number or not self.shipping_service.is_configured():
+        if not self.shipping_service.is_configured():
+            return
+
+        order_lookup_data = self._lookup_shipping_order_summary(order)
+
+        if order_lookup_data:
+            self._apply_shipping_order_summary(order, order_lookup_data)
+
+        if not order.awb_number:
             return
 
         try:
@@ -600,6 +608,11 @@ class OrderService:
             if error_message == "Shipment not found for this AWB":
                 order.shipment_error = None
                 order.shipment_last_synced_at = datetime.utcnow()
+                if order_lookup_data:
+                    self.db.add(order)
+                    self.db.commit()
+                    self.db.refresh(order)
+                    return
                 if not order.shipment_status:
                     order.shipment_status = "PENDING"
             else:
@@ -694,6 +707,33 @@ class OrderService:
         self.db.add(order)
         self.db.commit()
         self.db.refresh(order)
+
+    def _lookup_shipping_order_summary(self, order: Order) -> Optional[dict[str, Any]]:
+        try:
+            orders = self.shipping_service.list_orders(limit=100)
+        except HTTPException:
+            return None
+
+        for candidate in orders:
+            candidate_reference = self._string_or_none(candidate.get("order_reference"))
+            candidate_order_id = self._string_or_none(candidate.get("order_id"))
+            candidate_awb = self._string_or_none(candidate.get("awb_number"))
+            if candidate_reference == order.order_number:
+                return candidate
+            if order.shipment_order_id and candidate_order_id == order.shipment_order_id:
+                return candidate
+            if order.awb_number and candidate_awb == order.awb_number:
+                return candidate
+        return None
+
+    def _apply_shipping_order_summary(self, order: Order, summary: dict[str, Any]) -> None:
+        order.shipment_provider = "GenZLogix"
+        order.shipment_order_id = self._string_or_none(summary.get("order_id")) or order.shipment_order_id
+        order.awb_number = self._string_or_none(summary.get("awb_number")) or order.awb_number
+        order.shipment_status = self._string_or_none(summary.get("status")) or order.shipment_status
+        order.shipment_created_at = self._parse_iso_datetime(summary.get("created_at")) or order.shipment_created_at
+        order.shipment_last_synced_at = datetime.utcnow()
+        order.shipment_error = None
 
     @staticmethod
     def _parse_weight_kg(label: str) -> float:
