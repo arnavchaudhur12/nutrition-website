@@ -717,16 +717,49 @@ class OrderService:
 
     def _apply_tracking_data(self, order: Order, tracking_data: dict[str, Any]) -> None:
         history = tracking_data.get("history")
+        if not isinstance(history, list):
+            history = tracking_data.get("events")
         order.shipment_provider = "GenZLogix"
+        order.shipment_order_id = self._string_or_none(
+            tracking_data.get("order_id") or tracking_data.get("shipment_id")
+        ) or order.shipment_order_id
         order.awb_number = self._string_or_none(tracking_data.get("awb_number")) or order.awb_number
-        order.shipment_status = self._string_or_none(tracking_data.get("current_status")) or order.shipment_status
-        order.shipment_courier = self._string_or_none(tracking_data.get("courier"))
-        order.shipment_message = None
-        order.shipment_estimated_delivery = self._parse_date_value(tracking_data.get("estimated_delivery"))
-        order.shipment_last_synced_at = datetime.utcnow()
+        order.shipment_status = self._string_or_none(
+            tracking_data.get("current_status")
+            or tracking_data.get("current_status_display")
+            or tracking_data.get("status")
+        ) or order.shipment_status
+        order.shipment_courier = self._string_or_none(
+            tracking_data.get("courier")
+            or tracking_data.get("courier_name")
+            or tracking_data.get("assigned_courier")
+        )
+        order.shipment_message = self._string_or_none(
+            tracking_data.get("current_location")
+            or tracking_data.get("current_location_display")
+        )
+        order.shipment_estimated_delivery = self._parse_date_value(
+            tracking_data.get("estimated_delivery")
+            or tracking_data.get("expected_delivery_date")
+        )
+        order.shipment_last_synced_at = (
+            self._parse_iso_datetime(
+                tracking_data.get("last_updated_at") or tracking_data.get("updated_at")
+            )
+            or datetime.utcnow()
+        )
         order.shipment_error = None
         if isinstance(history, list):
-            normalized_history = [item for item in history if isinstance(item, dict)]
+            normalized_history = [
+                {
+                    "status": self._string_or_none(item.get("status")) or "Update",
+                    "location": self._string_or_none(item.get("location")),
+                    "timestamp": self._string_or_none(item.get("timestamp")),
+                    "description": self._string_or_none(item.get("description")),
+                }
+                for item in history
+                if isinstance(item, dict)
+            ]
             order.shipment_tracking_history = json.dumps(
                 normalized_history,
                 separators=(",", ":"),
