@@ -423,11 +423,17 @@ class OrderService:
     def sync_pending_shipments(self, *, limit: int = 100) -> int:
         synced_count = 0
         orders = self.orders.list_orders_for_shipment_sync(limit=limit)
+        order_summaries_by_key: Optional[dict[str, dict[str, Any]]] = None
+        if any(not order.awb_number for order in orders):
+            order_summaries_by_key = self._load_shipping_order_summaries()
         for order in orders:
             before_awb = order.awb_number
             before_status = order.shipment_status
             before_synced_at = order.shipment_last_synced_at
-            self._refresh_tracking_for_order_best_effort(order)
+            self._refresh_tracking_for_order_best_effort(
+                order,
+                order_summaries_by_key=order_summaries_by_key,
+            )
             if (
                 order.awb_number != before_awb
                 or order.shipment_status != before_status
@@ -641,11 +647,19 @@ class OrderService:
 
         self._apply_shipment_creation_data(order, shipment_data)
 
-    def _refresh_tracking_for_order_best_effort(self, order: Order) -> None:
+    def _refresh_tracking_for_order_best_effort(
+        self,
+        order: Order,
+        *,
+        order_summaries_by_key: Optional[dict[str, dict[str, Any]]] = None,
+    ) -> None:
         if not self.shipping_service.is_configured():
             return
 
-        order_lookup_data = self._lookup_shipping_order_summary(order)
+        order_lookup_data = self._lookup_shipping_order_summary(
+            order,
+            order_summaries_by_key=order_summaries_by_key,
+        )
 
         if order_lookup_data:
             self._apply_shipping_order_summary(order, order_lookup_data)
@@ -894,23 +908,46 @@ class OrderService:
         self.db.commit()
         self.db.refresh(order)
 
-    def _lookup_shipping_order_summary(self, order: Order) -> Optional[dict[str, Any]]:
+    def _load_shipping_order_summaries(self) -> Optional[dict[str, dict[str, Any]]]:
         try:
             orders = self.shipping_service.list_orders(limit=100)
         except HTTPException:
             return None
 
+        indexed: dict[str, dict[str, Any]] = {}
         for candidate in orders:
             candidate_reference = self._string_or_none(candidate.get("order_reference"))
             candidate_order_id = self._string_or_none(candidate.get("order_id"))
             candidate_awb = self._string_or_none(candidate.get("awb_number"))
-            if candidate_reference == order.order_number:
-                return candidate
-            if order.shipment_order_id and candidate_order_id == order.shipment_order_id:
-                return candidate
-            if order.awb_number and candidate_awb == order.awb_number:
-                return candidate
-        return None
+            if candidate_reference:
+                indexed[f"reference:{candidate_reference}"] = candidate
+            if candidate_order_id:
+                indexed[f"order_id:{candidate_order_id}"] = candidate
+            if candidate_awb:
+                indexed[f"awb:{candidate_awb}"] = candidate
+        return indexed
+
+    def _lookup_shipping_order_summary(
+        self,
+        order: Order,
+        *,
+        order_summaries_by_key: Optional[dict[str, dict[str, Any]]] = None,
+    ) -> Optional[dict[str, Any]]:
+        summaries = order_summaries_by_key
+        if summaries is None:
+            summaries = self._load_shipping_order_summaries()
+        if not summaries:
+            return None
+
+        if order.shipment_order_id:
+            matched = summaries.get(f"order_id:{order.shipment_order_id}")
+            if matched:
+                return matched
+        if order.awb_number:
+            matched = summaries.get(f"awb:{order.awb_number}")
+            if matched:
+                return matched
+        return summaries.get(f"reference:{order.order_number}")
 
     def _apply_shipping_order_summary(self, order: Order, summary: dict[str, Any]) -> None:
         order.shipment_provider = "GenZLogix"
