@@ -1,6 +1,8 @@
+import hmac
 import json
 import logging
 from datetime import date
+from hashlib import sha256
 from typing import Any, Optional
 
 import httpx
@@ -63,6 +65,25 @@ class ShippingService:
             f"&delivery_pincode={delivery_pincode.strip()}"
         )
         return self._request("GET", path)
+
+    def verify_webhook_signature(self, payload_body: bytes, signature: str) -> bool:
+        webhook_secret = self.settings.genzlogix_webhook_secret.strip()
+        if not webhook_secret:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="GenZLogix webhook secret is not configured.",
+            )
+
+        normalized_signature = signature.strip()
+        if normalized_signature.startswith("sha256="):
+            normalized_signature = normalized_signature.split("=", 1)[1].strip()
+
+        generated_signature = hmac.new(
+            webhook_secret.encode("utf-8"),
+            payload_body,
+            sha256,
+        ).hexdigest()
+        return hmac.compare_digest(generated_signature, normalized_signature)
 
     def _request(
         self,

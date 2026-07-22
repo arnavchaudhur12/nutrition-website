@@ -57,6 +57,7 @@ class Settings(BaseSettings):
     genzlogix_pickup_contact_name: str = "Jay Lagad"
     genzlogix_pickup_phone: str = "8605554809"
     genzlogix_pickup_gstin: str = ""
+    genzlogix_webhook_secret: str = ""
     genzlogix_default_length_cm: float = 20
     genzlogix_default_breadth_cm: float = 15
     genzlogix_default_height_cm: float = 10

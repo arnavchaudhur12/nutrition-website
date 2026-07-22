@@ -16,6 +16,7 @@ from app.schemas.order import (
 )
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
+from app.services.shipping_service import ShippingService
 
 router = APIRouter()
 
@@ -97,3 +98,34 @@ async def handle_razorpay_webhook(
         )
 
     return OrderService(db).handle_razorpay_webhook(event_type, payload)
+
+
+@router.post("/genzlogix/webhook")
+async def handle_genzlogix_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+    x_genz_signature: str = Header(default="", alias="X-GenZ-Signature"),
+    x_genz_event: str = Header(default="", alias="X-GenZ-Event"),
+) -> dict[str, object]:
+    if not x_genz_signature:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing GenZLogix webhook signature.",
+        )
+
+    body = await request.body()
+    if not ShippingService().verify_webhook_signature(body, x_genz_signature):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid GenZLogix webhook signature.",
+        )
+
+    payload: dict[str, Any] = await request.json()
+    event_type = x_genz_event.strip() or str(payload.get("event") or "").strip()
+    if not event_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Missing GenZLogix event type.",
+        )
+
+    return OrderService(db).handle_genzlogix_webhook(event_type, payload)

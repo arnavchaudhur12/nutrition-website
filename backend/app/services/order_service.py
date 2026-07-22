@@ -245,6 +245,21 @@ class OrderService:
         )
         return {"success": True, "processed": True, "order_number": order.order_number}
 
+    def handle_genzlogix_webhook(self, event_type: str, payload: dict[str, Any]) -> dict[str, object]:
+        shipment_data = payload.get("data")
+        if not isinstance(shipment_data, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Missing GenZLogix webhook data.",
+            )
+
+        order = self._find_order_for_genz_payload(shipment_data)
+        if not order:
+            return {"success": True, "processed": False}
+
+        self._apply_genzlogix_webhook_data(order, event_type, shipment_data)
+        return {"success": True, "processed": True, "order_number": order.order_number}
+
     @staticmethod
     def _extract_entity(payload: dict[str, Any], entity_name: str) -> dict[str, Any]:
         raw_entity = payload.get("payload", {}).get(entity_name, {}).get("entity", {})
@@ -270,6 +285,27 @@ class OrderService:
         receipt = str(order_entity.get("receipt") or "").strip()
         if receipt:
             return self.orders.get_by_order_number(receipt)
+
+        return None
+
+    def _find_order_for_genz_payload(self, shipment_data: dict[str, Any]) -> Optional[Order]:
+        order_id = self._string_or_none(shipment_data.get("order_id"))
+        if order_id:
+            order = self.orders.get_by_shipment_order_id(order_id)
+            if order:
+                return order
+
+        awb_number = self._string_or_none(shipment_data.get("awb_number"))
+        if awb_number:
+            order = self.orders.get_by_awb_number(awb_number)
+            if order:
+                return order
+
+        order_reference = self._string_or_none(
+            shipment_data.get("order_reference") or shipment_data.get("reference")
+        )
+        if order_reference:
+            return self.orders.get_by_order_number(order_reference)
 
         return None
 
@@ -765,6 +801,79 @@ class OrderService:
                 separators=(",", ":"),
                 ensure_ascii=True,
             )
+        self.db.add(order)
+        self.db.commit()
+        self.db.refresh(order)
+
+    def _apply_genzlogix_webhook_data(
+        self,
+        order: Order,
+        event_type: str,
+        shipment_data: dict[str, Any],
+    ) -> None:
+        current_estimated_delivery = (
+            order.shipment_estimated_delivery.isoformat()
+            if order.shipment_estimated_delivery
+            else None
+        )
+        event_timestamp_value = shipment_data.get("delivered_at") or shipment_data.get("updated_at")
+        webhook_status = self._string_or_none(
+            shipment_data.get("status") or event_type.removeprefix("shipment.").replace(".", " ")
+        )
+
+        order.shipment_provider = "GenZLogix"
+        order.shipment_order_id = self._string_or_none(shipment_data.get("order_id")) or order.shipment_order_id
+        order.awb_number = self._string_or_none(shipment_data.get("awb_number")) or order.awb_number
+        order.shipment_status = webhook_status or order.shipment_status
+        order.shipment_courier = self._string_or_none(
+            shipment_data.get("courier")
+            or shipment_data.get("courier_name")
+            or order.shipment_courier
+        )
+        order.shipment_estimated_delivery = self._parse_date_value(
+            shipment_data.get("estimated_delivery")
+            or shipment_data.get("expected_delivery_date")
+            or current_estimated_delivery
+        )
+        order.shipment_last_synced_at = self._parse_iso_datetime(
+            event_timestamp_value
+        ) or datetime.utcnow()
+        if webhook_status and webhook_status.lower() == "delivered":
+            order.shipment_message = "Delivered successfully."
+
+        existing_history = self._deserialize_tracking_history(order.shipment_tracking_history)
+        event_timestamp = self._string_or_none(event_timestamp_value)
+        next_event = {
+            "status": webhook_status or "Update",
+            "location": self._string_or_none(shipment_data.get("location")),
+            "timestamp": event_timestamp,
+            "description": self._string_or_none(shipment_data.get("description")),
+        }
+        event_key = (
+            next_event["status"],
+            next_event["location"],
+            next_event["timestamp"],
+            next_event["description"],
+        )
+        history_keys = {
+            (
+                self._string_or_none(item.get("status")),
+                self._string_or_none(item.get("location")),
+                self._string_or_none(item.get("timestamp")),
+                self._string_or_none(item.get("description")),
+            )
+            for item in existing_history
+            if isinstance(item, dict)
+        }
+        if event_key not in history_keys:
+            existing_history.append(next_event)
+            order.shipment_tracking_history = json.dumps(
+                existing_history,
+                separators=(",", ":"),
+                ensure_ascii=True,
+            )
+
+        order.shipment_error = None
         self.db.add(order)
         self.db.commit()
         self.db.refresh(order)

@@ -66,6 +66,22 @@ class OrderRepository:
         )
         return result.scalar_one_or_none()
 
+    def get_by_shipment_order_id(self, shipment_order_id: str) -> Optional[Order]:
+        result = self.db.execute(
+            select(Order)
+            .where(Order.shipment_order_id == shipment_order_id)
+            .options(selectinload(Order.items))
+        )
+        return result.scalar_one_or_none()
+
+    def get_by_awb_number(self, awb_number: str) -> Optional[Order]:
+        result = self.db.execute(
+            select(Order)
+            .where(Order.awb_number == awb_number)
+            .options(selectinload(Order.items))
+        )
+        return result.scalar_one_or_none()
+
     def get_next_order_sequence(self, start_from: int) -> int:
         order_numbers = self.db.execute(
             select(Order.order_number, Order.id, Order.payment_status, Order.status)
