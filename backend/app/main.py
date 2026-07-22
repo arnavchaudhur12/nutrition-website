@@ -24,6 +24,7 @@ from app.db.migrations import run_startup_migrations
 from app.db.seed import seed_defaults
 from app.db.session import SessionLocal, engine
 from app.services.monthly_invoice_scheduler import MonthlyInvoiceScheduler
+from app.services.shipment_sync_scheduler import ShipmentSyncScheduler
 
 settings = get_settings()
 configure_logging()
@@ -33,14 +34,17 @@ with SessionLocal() as session:
     seed_defaults(session)
 
 invoice_scheduler = MonthlyInvoiceScheduler()
+shipment_sync_scheduler = ShipmentSyncScheduler()
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     invoice_scheduler.start()
+    shipment_sync_scheduler.start()
     try:
         yield
     finally:
+        await shipment_sync_scheduler.stop()
         await invoice_scheduler.stop()
 
 

@@ -420,6 +420,22 @@ class OrderService:
             self._refresh_tracking_for_order_best_effort(order)
         return [self._build_customer_order_read(order) for order in orders]
 
+    def sync_pending_shipments(self, *, limit: int = 100) -> int:
+        synced_count = 0
+        orders = self.orders.list_orders_for_shipment_sync(limit=limit)
+        for order in orders:
+            before_awb = order.awb_number
+            before_status = order.shipment_status
+            before_synced_at = order.shipment_last_synced_at
+            self._refresh_tracking_for_order_best_effort(order)
+            if (
+                order.awb_number != before_awb
+                or order.shipment_status != before_status
+                or order.shipment_last_synced_at != before_synced_at
+            ):
+                synced_count += 1
+        return synced_count
+
     def list_admin_customer_portfolio(self, period: str = "all_time") -> list[AdminCustomerPortfolioRead]:
         portfolio: list[AdminCustomerPortfolioRead] = []
         for order in self.orders.list_orders():

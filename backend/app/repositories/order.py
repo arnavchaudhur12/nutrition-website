@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import func, select
@@ -47,6 +47,34 @@ class OrderRepository:
             )
             .options(selectinload(Order.items))
             .order_by(Order.created_at.asc(), Order.id.asc())
+        )
+        return list(result.scalars().all())
+
+    def list_orders_for_shipment_sync(
+        self,
+        *,
+        limit: int = 100,
+        stale_before: Optional[datetime] = None,
+    ) -> list[Order]:
+        if stale_before is None:
+            stale_before = datetime.utcnow() - timedelta(minutes=50)
+
+        result = self.db.execute(
+            select(Order)
+            .where(
+                Order.payment_status == "paid",
+                Order.status != "cancelled",
+                Order.shipment_order_id.is_not(None),
+                (
+                    Order.awb_number.is_(None)
+                    | Order.shipment_last_synced_at.is_(None)
+                    | (Order.shipment_last_synced_at < stale_before)
+                    | Order.shipment_status.is_(None)
+                ),
+            )
+            .options(selectinload(Order.items))
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .limit(limit)
         )
         return list(result.scalars().all())
 
