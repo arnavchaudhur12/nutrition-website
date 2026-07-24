@@ -144,6 +144,7 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
             loading={ordersLoading}
             error={ordersError}
             title="My Orders"
+            mode="history"
           />
         </div>
       ) : null}
@@ -158,6 +159,7 @@ export function SideDrawer({ open, onClose }: SideDrawerProps) {
             error={ordersError}
             title="Track Order"
             emptyMessage="No trackable shipments are available yet."
+            mode="tracking"
           />
         </div>
       ) : null}

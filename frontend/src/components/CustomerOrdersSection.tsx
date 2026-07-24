@@ -6,6 +6,7 @@ type CustomerOrdersSectionProps = {
   error?: string;
   title?: string;
   emptyMessage?: string;
+  mode?: "history" | "tracking";
 };
 
 function formatShipmentDate(value?: string | null): string {
@@ -116,7 +117,8 @@ export function CustomerOrdersSection({
   loading = false,
   error = "",
   title = "My Orders",
-  emptyMessage = "No orders found for this account yet."
+  emptyMessage = "No orders found for this account yet.",
+  mode = "history",
 }: CustomerOrdersSectionProps) {
   return (
     <section className="drawer-section">
@@ -141,25 +143,6 @@ export function CustomerOrdersSection({
                 </div>
                 <span>{formatOrderTotal(order.total_amount)}</span>
               </div>
-              <div className={`shipment-banner shipment-banner-${getShipmentTone(order)}`}>
-                <div>
-                  <strong>
-                    {order.shipment?.status ?? (order.payment_status === "paid" ? "Preparing shipment" : "Payment pending")}
-                  </strong>
-                  <p>
-                    {order.shipment?.estimated_delivery
-                      ? `Estimated delivery: ${formatShipmentDate(order.shipment.estimated_delivery)}`
-                      : order.shipment?.message
-                        ? order.shipment.message
-                        : order.shipment?.error
-                          ? order.shipment.error
-                          : "Real-time courier events will appear here once assigned."}
-                  </p>
-                </div>
-                <span className="shipment-badge">
-                  {order.shipment?.courier ?? order.shipment?.provider ?? "Lagads Care"}
-                </span>
-              </div>
               <p className="order-address">{order.delivery_address}</p>
               <div className="shipment-meta-grid">
                 <div className="shipment-meta-card">
@@ -167,43 +150,82 @@ export function CustomerOrdersSection({
                   <strong>{order.payment_status}</strong>
                 </div>
                 <div className="shipment-meta-card">
-                  <span>AWB</span>
-                  <strong>{order.shipment?.awb_number ?? "Will appear after courier booking"}</strong>
+                  <span>{mode === "tracking" ? "AWB" : "Order Status"}</span>
+                  <strong>
+                    {mode === "tracking"
+                      ? order.shipment?.awb_number ?? "Will appear after courier booking"
+                      : order.status}
+                  </strong>
                 </div>
                 <div className="shipment-meta-card">
-                  <span>Synced</span>
-                  <strong>{formatShipmentDateTime(order.shipment?.last_synced_at)}</strong>
+                  <span>{mode === "tracking" ? "Synced" : "Shipment"}</span>
+                  <strong>
+                    {mode === "tracking"
+                      ? formatShipmentDateTime(order.shipment?.last_synced_at)
+                      : order.shipment?.status ?? (order.payment_status === "paid" ? "Preparing shipment" : "Pending")}
+                  </strong>
                 </div>
               </div>
-              <div className="shipment-timeline">
-                {getShipmentTimeline(order).map((step) => (
-                  <div
-                    key={step.label}
-                    className={`shipment-step ${step.done ? "done" : ""} ${step.active ? "active" : ""}`}
-                  >
-                    <div className="shipment-step-dot" />
+              {mode === "tracking" ? (
+                <>
+                  <div className={`shipment-banner shipment-banner-${getShipmentTone(order)}`}>
                     <div>
-                      <strong>{step.label}</strong>
-                      <p>{step.detail}</p>
+                      <strong>
+                        {order.shipment?.status ?? (order.payment_status === "paid" ? "Preparing shipment" : "Payment pending")}
+                      </strong>
+                      <p>
+                        {order.shipment?.estimated_delivery
+                          ? `Estimated delivery: ${formatShipmentDate(order.shipment.estimated_delivery)}`
+                          : order.shipment?.message
+                            ? order.shipment.message
+                            : order.shipment?.error
+                              ? order.shipment.error
+                              : "Real-time courier events will appear here once assigned."}
+                      </p>
                     </div>
+                    <span className="shipment-badge">
+                      {order.shipment?.courier ?? order.shipment?.provider ?? "Lagads Care"}
+                    </span>
                   </div>
-                ))}
-              </div>
-              {order.shipment?.history?.length ? (
-                <div className="shipment-history">
-                  {order.shipment.history.map((event, index) => (
-                    <div key={`${order.order_number}-${event.status}-${index}`} className="shipment-history-row">
-                      <div>
-                        <strong>{event.status}</strong>
-                        <p>{event.location ?? "Location update pending"}</p>
+                  <div className="shipment-timeline">
+                    {getShipmentTimeline(order).map((step) => (
+                      <div
+                        key={step.label}
+                        className={`shipment-step ${step.done ? "done" : ""} ${step.active ? "active" : ""}`}
+                      >
+                        <div className="shipment-step-dot" />
+                        <div>
+                          <strong>{step.label}</strong>
+                          <p>{step.detail}</p>
+                        </div>
                       </div>
-                      <span>{formatShipmentDateTime(event.timestamp)}</span>
+                    ))}
+                  </div>
+                  {order.shipment?.history?.length ? (
+                    <div className="shipment-history">
+                      {order.shipment.history.map((event, index) => (
+                        <div key={`${order.order_number}-${event.status}-${index}`} className="shipment-history-row">
+                          <div>
+                            <strong>{event.status}</strong>
+                            <p>{event.location ?? "Location update pending"}</p>
+                          </div>
+                          <span>{formatShipmentDateTime(event.timestamp)}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
-                </div>
+                  ) : (
+                    <p className="order-subtitle">
+                      Courier scan events will start showing here right after the shipment is picked up.
+                    </p>
+                  )}
+                </>
               ) : (
                 <p className="order-subtitle">
-                  Courier scan events will start showing here right after the shipment is picked up.
+                  {order.shipment?.status
+                    ? `Shipment status: ${order.shipment.status}`
+                    : order.payment_status === "paid"
+                      ? "Shipment preparation is in progress."
+                      : "Payment confirmation is pending."}
                 </p>
               )}
               <div className="metric-list">
