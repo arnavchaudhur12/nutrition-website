@@ -36,6 +36,12 @@ function formatOrderTotal(amount: number): string {
   }).format(amount);
 }
 
+function formatLabel(value: string): string {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
 function getShipmentTone(order: CustomerOrder): "pending" | "active" | "delivered" | "error" {
   const status = order.shipment?.status?.toLowerCase() ?? "";
   if (order.shipment?.error) {
@@ -144,30 +150,22 @@ export function CustomerOrdersSection({
                 <span>{formatOrderTotal(order.total_amount)}</span>
               </div>
               <p className="order-address">{order.delivery_address}</p>
-              <div className="shipment-meta-grid">
-                <div className="shipment-meta-card">
-                  <span>Payment</span>
-                  <strong>{order.payment_status}</strong>
-                </div>
-                <div className="shipment-meta-card">
-                  <span>{mode === "tracking" ? "AWB" : "Order Status"}</span>
-                  <strong>
-                    {mode === "tracking"
-                      ? order.shipment?.awb_number ?? "Will appear after courier booking"
-                      : order.status}
-                  </strong>
-                </div>
-                <div className="shipment-meta-card">
-                  <span>{mode === "tracking" ? "Synced" : "Shipment"}</span>
-                  <strong>
-                    {mode === "tracking"
-                      ? formatShipmentDateTime(order.shipment?.last_synced_at)
-                      : order.shipment?.status ?? (order.payment_status === "paid" ? "Preparing shipment" : "Pending")}
-                  </strong>
-                </div>
-              </div>
               {mode === "tracking" ? (
                 <>
+                  <div className="shipment-meta-grid">
+                    <div className="shipment-meta-card">
+                      <span>Payment</span>
+                      <strong>{order.payment_status}</strong>
+                    </div>
+                    <div className="shipment-meta-card">
+                      <span>AWB</span>
+                      <strong>{order.shipment?.awb_number ?? "Will appear after courier booking"}</strong>
+                    </div>
+                    <div className="shipment-meta-card">
+                      <span>Synced</span>
+                      <strong>{formatShipmentDateTime(order.shipment?.last_synced_at)}</strong>
+                    </div>
+                  </div>
                   <div className={`shipment-banner shipment-banner-${getShipmentTone(order)}`}>
                     <div>
                       <strong>
@@ -220,13 +218,26 @@ export function CustomerOrdersSection({
                   )}
                 </>
               ) : (
-                <p className="order-subtitle">
-                  {order.shipment?.status
-                    ? `Shipment status: ${order.shipment.status}`
-                    : order.payment_status === "paid"
-                      ? "Shipment preparation is in progress."
-                      : "Payment confirmation is pending."}
-                </p>
+                <div className="order-history-grid">
+                  <div className="order-history-card">
+                    <span>Payment</span>
+                    <strong>{formatLabel(order.payment_status)}</strong>
+                  </div>
+                  <div className="order-history-card">
+                    <span>Order Status</span>
+                    <strong>{formatLabel(order.status)}</strong>
+                  </div>
+                  <div className="order-history-card">
+                    <span>Delivery</span>
+                    <strong>
+                      {order.shipment?.status
+                        ? formatLabel(order.shipment.status)
+                        : order.payment_status === "paid"
+                          ? "Preparing Shipment"
+                          : "Pending Confirmation"}
+                    </strong>
+                  </div>
+                </div>
               )}
               <div className="metric-list">
                 {order.items.map((item) => (
