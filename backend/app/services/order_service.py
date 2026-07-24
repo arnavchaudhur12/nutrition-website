@@ -245,6 +245,34 @@ class OrderService:
         )
         return {"success": True, "processed": True, "order_number": order.order_number}
 
+    def reconcile_captured_payments(self, *, limit: int = 100) -> int:
+        created_after = datetime.utcnow() - timedelta(
+            hours=max(self.settings.razorpay_reconcile_lookback_hours, 1)
+        )
+        reconciled_count = 0
+        orders = self.orders.list_pending_payment_orders_for_reconciliation(
+            created_after=created_after,
+            limit=limit,
+        )
+
+        for order in orders:
+            payment_reference = (order.payment_reference or "").strip()
+            if not payment_reference.startswith("order_"):
+                continue
+
+            captured_payment_id = self.payment_service.get_captured_payment_id_for_order(payment_reference)
+            if not captured_payment_id:
+                continue
+
+            self._mark_order_paid(
+                order,
+                razorpay_order_id=payment_reference,
+                should_send_confirmation=True,
+            )
+            reconciled_count += 1
+
+        return reconciled_count
+
     def handle_genzlogix_webhook(self, event_type: str, payload: dict[str, Any]) -> dict[str, object]:
         shipment_data = payload.get("data")
         if not isinstance(shipment_data, dict):

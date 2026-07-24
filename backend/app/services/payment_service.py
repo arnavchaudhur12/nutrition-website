@@ -1,6 +1,7 @@
 import hmac
+import logging
 from hashlib import sha256
-from typing import Union
+from typing import Any, Optional, Union
 from uuid import uuid4
 
 import razorpay
@@ -9,6 +10,8 @@ from razorpay.errors import BadRequestError, GatewayError, ServerError
 from requests import RequestException
 
 from app.core.config import get_settings
+
+logger = logging.getLogger(__name__)
 
 
 class PaymentService:
@@ -125,3 +128,53 @@ class PaymentService:
             sha256,
         ).hexdigest()
         return hmac.compare_digest(generated_signature, signature)
+
+    def get_captured_payment_id_for_order(self, razorpay_order_id: str) -> Optional[str]:
+        if not self.key_id or not self.key_secret:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Razorpay credentials are not configured.",
+            )
+
+        client = razorpay.Client(auth=(self.key_id, self.key_secret))
+
+        try:
+            response: Any = client.order.payments(razorpay_order_id)
+        except BadRequestError as error:
+            logger.warning(
+                "Razorpay reconciliation lookup failed for order_id=%s detail=%s",
+                razorpay_order_id,
+                str(error),
+            )
+            return None
+        except (GatewayError, ServerError, RequestException):
+            logger.exception(
+                "Razorpay reconciliation lookup failed for order_id=%s",
+                razorpay_order_id,
+            )
+            return None
+        except Exception:
+            logger.exception(
+                "Unexpected Razorpay reconciliation error for order_id=%s",
+                razorpay_order_id,
+            )
+            return None
+
+        payments = self._extract_payment_items(response)
+        for payment in payments:
+            status_value = str(payment.get("status") or "").strip().lower()
+            if status_value == "captured":
+                payment_id = str(payment.get("id") or "").strip()
+                if payment_id:
+                    return payment_id
+        return None
+
+    @staticmethod
+    def _extract_payment_items(response: Any) -> list[dict[str, Any]]:
+        if isinstance(response, dict):
+            items = response.get("items")
+            if isinstance(items, list):
+                return [item for item in items if isinstance(item, dict)]
+        if isinstance(response, list):
+            return [item for item in response if isinstance(item, dict)]
+        return []

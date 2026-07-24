@@ -46,6 +46,8 @@ class Settings(BaseSettings):
     payment_webhook_secret: str = ""
     razorpay_key_id: str = ""
     razorpay_key_secret: str = ""
+    razorpay_reconcile_interval_minutes: int = 15
+    razorpay_reconcile_lookback_hours: int = 72
 
     genzlogix_api_key: str = ""
     genzlogix_base_url: str = "https://genzlogix.com/api/v1/public"

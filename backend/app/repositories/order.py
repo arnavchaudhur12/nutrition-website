@@ -78,6 +78,26 @@ class OrderRepository:
         )
         return list(result.scalars().all())
 
+    def list_pending_payment_orders_for_reconciliation(
+        self,
+        *,
+        created_after: datetime,
+        limit: int = 100,
+    ) -> list[Order]:
+        result = self.db.execute(
+            select(Order)
+            .where(
+                Order.payment_status == "initiated",
+                Order.status == "pending_payment",
+                Order.payment_reference.is_not(None),
+                Order.created_at >= created_after,
+            )
+            .options(selectinload(Order.items))
+            .order_by(Order.created_at.desc(), Order.id.desc())
+            .limit(limit)
+        )
+        return list(result.scalars().all())
+
     def get_by_payment_reference(self, payment_reference: str) -> Optional[Order]:
         result = self.db.execute(
             select(Order)

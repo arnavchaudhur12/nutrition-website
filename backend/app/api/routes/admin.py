@@ -57,6 +57,15 @@ def get_coupon_orders(
     return OrderService(db).list_coupon_order_summary(period)
 
 
+@router.post("/payments/reconcile")
+def reconcile_pending_payments(
+    db: Session = Depends(get_db),
+    _admin=Depends(get_current_admin),
+) -> dict[str, object]:
+    reconciled_count = OrderService(db).reconcile_captured_payments(limit=200)
+    return {"success": True, "recovered_orders": reconciled_count}
+
+
 @router.get("/invoice-statement/download")
 def download_invoice_statement(
     start_date: date = Query(...),
