@@ -14,5 +14,6 @@ backend/.env
 frontend/.env
 backend/uploads
 backend/lagads_nutrition.db
+data
 frontend/*.tsbuildinfo
 alembic.ini
