@@ -77,6 +77,14 @@ type PortfolioFilters = {
   email: string;
 };
 
+function slugifyProductName(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
 const emptyProductForm = (): ProductFormState => ({
   slug: "",
   name: "",
@@ -133,20 +141,34 @@ function productToForm(product: AdminProduct): ProductFormState {
 }
 
 function buildProductPayload(form: ProductFormState) {
-  return {
-    slug: form.slug,
-    name: form.name,
-    flavour: form.flavour,
-    description: form.description,
-    image_url: form.image_urls.find((item) => item.trim()) || null,
-    image_urls: form.image_urls.filter((item) => item.trim()).slice(0, 5),
-    category: form.category,
-    variants: form.variants.map((variant) => ({
-      weight_label: variant.weight_label,
+  const name = form.name.trim();
+  const flavour = form.flavour.trim();
+  const description = form.description.trim() || [name, flavour].filter(Boolean).join(" - ");
+  const variants = form.variants
+    .map((variant) => ({
+      weight_label: variant.weight_label.trim(),
       mrp: Number(variant.mrp),
       selling_price: Number(variant.selling_price),
       stock_quantity: Number(variant.stock_quantity)
     }))
+    .filter(
+      (variant) =>
+        variant.weight_label &&
+        Number.isFinite(variant.mrp) &&
+        Number.isFinite(variant.selling_price) &&
+        variant.mrp > 0 &&
+        variant.selling_price > 0
+    );
+
+  return {
+    slug: form.slug.trim() || slugifyProductName(name),
+    name,
+    flavour,
+    description,
+    image_url: form.image_urls.find((item) => item.trim()) || null,
+    image_urls: form.image_urls.map((item) => item.trim()).filter(Boolean).slice(0, 5),
+    category: form.category.trim() || "Peanut Butter",
+    variants
   };
 }
 

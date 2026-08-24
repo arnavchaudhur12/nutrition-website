@@ -1,6 +1,19 @@
-from typing import Optional
+import re
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
+
+
+def slugify_product_name(value: str) -> str:
+    slug = re.sub(r"[^a-z0-9]+", "-", value.strip().lower())
+    return slug.strip("-")
+
+
+def number_or_none(value: Any) -> Optional[float]:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return None
 
 
 class ProductVariantBase(BaseModel):
@@ -57,6 +70,39 @@ class ProductCreate(BaseModel):
     @classmethod
     def strip_text_fields(cls, value: str) -> str:
         return value.strip()
+
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_admin_payload(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+
+        normalized = dict(data)
+        name = str(normalized.get("name") or "").strip()
+        flavour = str(normalized.get("flavour") or "").strip()
+        slug = str(normalized.get("slug") or "").strip()
+        description = str(normalized.get("description") or "").strip()
+
+        if not slug and name:
+            normalized["slug"] = slugify_product_name(name)
+        if not description:
+            normalized["description"] = " - ".join(part for part in (name, flavour) if part)
+
+        variants = normalized.get("variants")
+        if isinstance(variants, list):
+            normalized["variants"] = [
+                variant
+                for variant in variants
+                if not (
+                    isinstance(variant, dict)
+                    and (mrp := number_or_none(variant.get("mrp"))) is not None
+                    and (selling_price := number_or_none(variant.get("selling_price"))) is not None
+                    and mrp <= 0
+                    and selling_price <= 0
+                )
+            ]
+
+        return normalized
 
     @field_validator("image_urls")
     @classmethod
