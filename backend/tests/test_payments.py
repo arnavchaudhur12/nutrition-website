@@ -1,4 +1,5 @@
 from uuid import uuid4
+from typing import Optional
 
 from fastapi.testclient import TestClient
 
@@ -10,6 +11,15 @@ from app.repositories.product import ProductRepository
 from app.services.email_service import EmailService
 from app.services.order_service import OrderService
 from app.services.payment_service import PaymentService
+
+
+def get_in_stock_product_and_variant(client: TestClient) -> tuple[dict[str, object], dict[str, object]]:
+    products = client.get("/api/products").json()
+    for product in products:
+        for variant in product["variants"]:
+            if variant["stock_quantity"] > 0:
+                return product, variant
+    raise AssertionError("Expected at least one in-stock product variant.")
 
 
 def test_guest_can_create_payment_order_without_login(monkeypatch) -> None:
@@ -41,6 +51,7 @@ def test_guest_can_create_payment_order_without_login(monkeypatch) -> None:
 
 def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
     client = TestClient(app)
+    razorpay_order_id = f"order_test_{uuid4().hex[:10]}"
 
     def fake_create_razorpay_order(
         self: PaymentService,
@@ -49,7 +60,7 @@ def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
         receipt: str,
     ) -> dict[str, object]:
         return {
-            "order_id": "order_test_123",
+            "order_id": razorpay_order_id,
             "amount": amount_paise,
             "currency": currency,
             "receipt": receipt,
@@ -69,8 +80,7 @@ def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
     )
     token = register_response.json()["access_token"]
 
-    product = client.get("/api/products").json()[0]
-    variant = product["variants"][0]
+    product, variant = get_in_stock_product_and_variant(client)
     response = client.post(
         "/api/create-order",
         headers={"Authorization": f"Bearer {token}"},
@@ -81,6 +91,8 @@ def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
             "phone_number": "9999999999",
             "delivery_address": "Test address",
             "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
             "items": [
                 {
                     "product_slug": product["slug"],
@@ -92,8 +104,8 @@ def test_logged_in_customer_can_create_payment_order(monkeypatch) -> None:
     )
 
     assert response.status_code == 200
-    assert response.json()["order_id"] == "order_test_123"
-    assert response.json()["app_order_number"] is None
+    assert response.json()["order_id"] == razorpay_order_id
+    assert response.json()["app_order_number"].startswith("PENDING-")
     assert response.json()["receipt"].startswith("PENDING-")
 
 
@@ -101,6 +113,7 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
     client = TestClient(app)
     created_receipts: list[str] = []
     sent_confirmations: list[str] = []
+    razorpay_order_prefix = f"order_seq_{uuid4().hex[:10]}"
 
     def fake_create_razorpay_order(
         self: PaymentService,
@@ -110,7 +123,7 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
     ) -> dict[str, object]:
         created_receipts.append(receipt)
         return {
-            "order_id": f"order_seq_{len(created_receipts)}",
+            "order_id": f"{razorpay_order_prefix}_{len(created_receipts)}",
             "amount": amount_paise,
             "currency": currency,
             "receipt": receipt,
@@ -140,8 +153,7 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
     )
     token = register_response.json()["access_token"]
 
-    product = client.get("/api/products").json()[0]
-    variant = product["variants"][0]
+    product, variant = get_in_stock_product_and_variant(client)
     base_payload = {
         "currency": "INR",
         "customer_name": "Sequence Test",
@@ -149,6 +161,8 @@ def test_order_numbers_stay_sequential(monkeypatch) -> None:
         "phone_number": "9999999999",
         "delivery_address": "Test address",
         "pincode": "411001",
+        "city": "Pune",
+        "state": "Maharashtra",
         "items": [
             {
                 "product_slug": product["slug"],
@@ -231,8 +245,7 @@ def test_coupon_code_applies_discount(monkeypatch) -> None:
     )
     token = register_response.json()["access_token"]
 
-    product = client.get("/api/products").json()[0]
-    variant = product["variants"][0]
+    product, variant = get_in_stock_product_and_variant(client)
     response_without_coupon = client.post(
         "/api/create-order",
         headers={"Authorization": f"Bearer {token}"},
@@ -243,6 +256,8 @@ def test_coupon_code_applies_discount(monkeypatch) -> None:
             "phone_number": "9999999999",
             "delivery_address": "Test address",
             "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
             "items": [
                 {
                     "product_slug": product["slug"],
@@ -263,6 +278,8 @@ def test_coupon_code_applies_discount(monkeypatch) -> None:
             "phone_number": "9999999999",
             "delivery_address": "Test address",
             "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
             "coupon_code": coupon_code,
             "items": [
                 {
@@ -312,8 +329,7 @@ def test_invalid_coupon_code_returns_bad_request(monkeypatch) -> None:
     )
     token = register_response.json()["access_token"]
 
-    product = client.get("/api/products").json()[0]
-    variant = product["variants"][0]
+    product, variant = get_in_stock_product_and_variant(client)
     response = client.post(
         "/api/create-order",
         headers={"Authorization": f"Bearer {token}"},
@@ -324,6 +340,8 @@ def test_invalid_coupon_code_returns_bad_request(monkeypatch) -> None:
             "phone_number": "9999999999",
             "delivery_address": "Test address",
             "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
             "coupon_code": "BAD999",
             "items": [
                 {
@@ -368,8 +386,7 @@ def test_out_of_stock_product_cannot_start_payment(monkeypatch) -> None:
     )
     token = register_response.json()["access_token"]
 
-    product = client.get("/api/products").json()[0]
-    variant = product["variants"][0]
+    product, variant = get_in_stock_product_and_variant(client)
     original_stock = variant["stock_quantity"]
     with SessionLocal() as db:
         stored_product = ProductRepository(db).get_by_slug(product["slug"])
@@ -389,6 +406,8 @@ def test_out_of_stock_product_cannot_start_payment(monkeypatch) -> None:
             "phone_number": "9999999999",
             "delivery_address": "Test address",
             "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
             "items": [
                 {
                     "product_slug": product["slug"],
@@ -467,8 +486,7 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
     )
     token = register_response.json()["access_token"]
 
-    product = client.get("/api/products").json()[0]
-    variant = product["variants"][0]
+    product, variant = get_in_stock_product_and_variant(client)
     create_response = client.post(
         "/api/create-order",
         headers={"Authorization": f"Bearer {token}"},
@@ -479,6 +497,8 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
             "phone_number": "9999999999",
             "delivery_address": "Webhook address",
             "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
             "items": [
                 {
                     "product_slug": product["slug"],
@@ -490,7 +510,7 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
     )
 
     assert create_response.status_code == 200
-    assert create_response.json()["app_order_number"] is None
+    assert create_response.json()["app_order_number"].startswith("PENDING-")
 
     webhook_response = client.post(
         "/api/payments/webhook",
@@ -522,5 +542,110 @@ def test_razorpay_webhook_confirms_paid_order_without_frontend_verify(monkeypatc
         assert product_after_payment is not None
         paid_variant = next(item for item in product_after_payment.variants if item.id == variant["id"])
         assert paid_variant.stock_quantity == variant["stock_quantity"] - 1
+
+    assert sent_confirmations == [email]
+
+
+def test_reconciliation_recovers_failed_order_with_captured_razorpay_payment(monkeypatch) -> None:
+    client = TestClient(app)
+    sent_confirmations: list[str] = []
+    razorpay_order_id = f"order_recover_{uuid4().hex[:10]}"
+
+    def fake_create_razorpay_order(
+        self: PaymentService,
+        amount_paise: int,
+        currency: str,
+        receipt: str,
+    ) -> dict[str, object]:
+        return {
+            "order_id": razorpay_order_id,
+            "amount": amount_paise,
+            "currency": currency,
+            "receipt": receipt,
+        }
+
+    def fake_get_captured_payment_id_for_order(
+        self: PaymentService,
+        order_id: str,
+    ) -> Optional[str]:
+        return "pay_recovered_test" if order_id == razorpay_order_id else None
+
+    def fake_send_order_confirmation(
+        self: EmailService,
+        buyer_email: str,
+        subject: str,
+        html_body: str,
+        attachments: list[dict[str, object]],
+    ) -> None:
+        sent_confirmations.append(buyer_email)
+
+    monkeypatch.setattr(PaymentService, "create_razorpay_order", fake_create_razorpay_order)
+    monkeypatch.setattr(
+        PaymentService,
+        "get_captured_payment_id_for_order",
+        fake_get_captured_payment_id_for_order,
+    )
+    monkeypatch.setattr(
+        EmailService,
+        "send_order_confirmation",
+        fake_send_order_confirmation,
+    )
+
+    email = f"recover-{uuid4().hex[:8]}@example.com"
+    register_response = client.post(
+        "/api/auth/register",
+        json={
+            "full_name": "Recover Test",
+            "email": email,
+            "password": "Password123!",
+            "phone_number": "9999999999",
+        },
+    )
+    token = register_response.json()["access_token"]
+
+    product, variant = get_in_stock_product_and_variant(client)
+    create_response = client.post(
+        "/api/create-order",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "currency": "INR",
+            "customer_name": "Recover Test",
+            "email": email,
+            "phone_number": "9999999999",
+            "delivery_address": "Recover address",
+            "pincode": "411001",
+            "city": "Pune",
+            "state": "Maharashtra",
+            "items": [
+                {
+                    "product_slug": product["slug"],
+                    "variant_id": variant["id"],
+                    "quantity": 1,
+                }
+            ],
+        },
+    )
+
+    assert create_response.status_code == 200
+
+    with SessionLocal() as db:
+        order = OrderRepository(db).get_by_payment_reference(razorpay_order_id)
+        assert order is not None
+        order.status = "payment_failed"
+        order.payment_status = "failed"
+        db.add(order)
+        db.commit()
+
+    with SessionLocal() as db:
+        recovered_count = OrderService(db).reconcile_captured_payments(limit=10)
+
+    assert recovered_count == 1
+
+    with SessionLocal() as db:
+        order = OrderRepository(db).get_by_payment_reference(razorpay_order_id)
+        assert order is not None
+        assert order.status == "confirmed"
+        assert order.payment_status == "paid"
+        assert order.order_number.startswith("LN-")
 
     assert sent_confirmations == [email]

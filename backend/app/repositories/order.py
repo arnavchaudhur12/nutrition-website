@@ -87,8 +87,8 @@ class OrderRepository:
         result = self.db.execute(
             select(Order)
             .where(
-                Order.payment_status == "initiated",
-                Order.status == "pending_payment",
+                Order.payment_status.in_(["initiated", "failed"]),
+                Order.status.in_(["pending_payment", "payment_failed"]),
                 Order.payment_reference.is_not(None),
                 Order.created_at >= created_after,
             )

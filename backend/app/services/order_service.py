@@ -206,6 +206,17 @@ class OrderService:
         if current_user:
             self._ensure_order_owner(order, current_user)
 
+        captured_payment_id = self.payment_service.get_captured_payment_id_for_order(
+            payload.razorpay_order_id
+        )
+        if captured_payment_id:
+            self._mark_order_paid(
+                order,
+                razorpay_order_id=payload.razorpay_order_id,
+                should_send_confirmation=order.payment_status != "paid",
+            )
+            return {"success": True, "order_number": order.order_number}
+
         order.status = "payment_failed"
         order.payment_status = "failed"
         self.db.add(order)

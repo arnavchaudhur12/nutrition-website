@@ -285,14 +285,6 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
           ondismiss: () => {
             setIsSubmitting(false);
             paymentFlowLock.current = false;
-            void notifyPaymentFailure(
-              {
-                razorpay_order_id: paymentOrder.order_id,
-                reason: "cancelled",
-                description: "Customer closed the payment window before completing payment."
-              },
-              activeToken
-            ).catch(() => undefined);
             showStatus("error", "Payment was cancelled before completion.");
           }
         },
