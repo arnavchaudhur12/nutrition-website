@@ -242,9 +242,73 @@ export async function deleteAdminProduct(token: string, productId: number): Prom
   await parseJson<{ message: string }>(response, "Unable to delete product.");
 }
 
+const MAX_UPLOAD_BYTES = 9 * 1024 * 1024;
+const RESIZABLE_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+async function prepareImageForUpload(file: File): Promise<File> {
+  if (file.size <= MAX_UPLOAD_BYTES || !RESIZABLE_IMAGE_TYPES.has(file.type)) {
+    return file;
+  }
+
+  const image = await loadImage(file);
+  const canvas = document.createElement("canvas");
+  const context = canvas.getContext("2d");
+  if (!context) {
+    return file;
+  }
+
+  const maxDimension = 2400;
+  const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  for (const quality of [0.86, 0.78, 0.7]) {
+    const blob = await canvasToBlob(canvas, "image/jpeg", quality);
+    if (blob.size <= MAX_UPLOAD_BYTES || quality === 0.7) {
+      const filename = file.name.replace(/\.[^.]+$/, "") || "upload";
+      return new File([blob], `${filename}.jpg`, { type: "image/jpeg" });
+    }
+  }
+
+  return file;
+}
+
+function loadImage(file: File): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Unable to read the selected image."));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToBlob(canvas: HTMLCanvasElement, type: string, quality: number): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) {
+          resolve(blob);
+          return;
+        }
+        reject(new Error("Unable to prepare image for upload."));
+      },
+      type,
+      quality
+    );
+  });
+}
+
 export async function uploadAdminImage(token: string, file: File): Promise<string> {
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", await prepareImageForUpload(file));
 
   const response = await fetch(`${API_BASE_URL}/admin/upload-image`, {
     method: "POST",

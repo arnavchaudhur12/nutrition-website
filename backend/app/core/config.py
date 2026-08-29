@@ -8,6 +8,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 REPO_ROOT = BACKEND_ROOT.parent
+UPLOAD_DIR = BACKEND_ROOT / "uploads"
 
 
 class Settings(BaseSettings):

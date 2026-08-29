@@ -97,6 +97,10 @@ class GoogleSheetService:
 
     def sync_successful_orders_snapshot_best_effort(self) -> None:
         if not self.is_configured():
+            logger.warning(
+                "Google Sheet sync skipped because GOOGLE_SHEET_ID or "
+                "GOOGLE_SERVICE_ACCOUNT_FILE is not configured."
+            )
             return
 
         try:

@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, Up
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_admin
+from app.core.config import UPLOAD_DIR
 from app.db.session import get_db
 from app.schemas.coupon import CouponCreateRequest, CouponRead
 from app.schemas.hero import HeroSettingsRead, HeroSettingsUpdate
@@ -17,7 +18,6 @@ from app.services.order_service import OrderService
 from app.services.product_service import ProductService
 
 router = APIRouter()
-UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
 MAX_IMAGE_SIZE_BYTES = 10 * 1024 * 1024

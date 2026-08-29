@@ -11,7 +11,11 @@ from app.services.google_sheet_service import GoogleSheetService
 
 
 def main() -> None:
-    GoogleSheetService().sync_successful_orders_snapshot()
+    service = GoogleSheetService()
+    rows = service.build_successful_order_rows()
+    print(f"Prepared {len(rows) - 1} successful order rows for Google Sheets.")
+    service.sync_successful_orders_snapshot()
+    print("Google Sheets sync completed.")
 
 
 if __name__ == "__main__":

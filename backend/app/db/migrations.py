@@ -5,6 +5,8 @@ from sqlalchemy.engine import Engine
 def run_startup_migrations(engine: Engine) -> None:
     inspector = inspect(engine)
     tables = set(inspector.get_table_names())
+    _ensure_peanut_butter_hero_image(engine, tables)
+
     if "orders" not in tables:
         return
 
@@ -70,3 +72,43 @@ def run_startup_migrations(engine: Engine) -> None:
     with engine.begin() as connection:
         for statement in order_item_statements:
             connection.execute(text(statement))
+
+
+def _ensure_peanut_butter_hero_image(engine: Engine, tables: set[str]) -> None:
+    if "hero_settings" not in tables or "hero_images" not in tables:
+        return
+
+    image_url = "/uploads/lagads-peanut-butter-hero-second.jpg"
+    with engine.begin() as connection:
+        hero_settings_id = connection.execute(
+            text("SELECT id FROM hero_settings ORDER BY id LIMIT 1")
+        ).scalar_one_or_none()
+        if hero_settings_id is None:
+            return
+
+        existing_id = connection.execute(
+            text("SELECT id FROM hero_images WHERE image_url = :image_url LIMIT 1"),
+            {"image_url": image_url},
+        ).scalar_one_or_none()
+        if existing_id is not None:
+            connection.execute(
+                text("UPDATE hero_images SET sort_order = 1 WHERE id = :existing_id"),
+                {"existing_id": existing_id},
+            )
+            return
+
+        connection.execute(
+            text(
+                "UPDATE hero_images "
+                "SET sort_order = sort_order + 1 "
+                "WHERE hero_settings_id = :hero_settings_id AND sort_order >= 1"
+            ),
+            {"hero_settings_id": hero_settings_id},
+        )
+        connection.execute(
+            text(
+                "INSERT INTO hero_images (hero_settings_id, image_url, sort_order) "
+                "VALUES (:hero_settings_id, :image_url, 1)"
+            ),
+            {"hero_settings_id": hero_settings_id, "image_url": image_url},
+        )

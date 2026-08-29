@@ -17,7 +17,7 @@ from app.api.routes import (
     products,
     visitors,
 )
-from app.core.config import get_settings
+from app.core.config import UPLOAD_DIR, get_settings
 from app.core.logging import configure_logging
 from app.db.base import Base
 from app.db.migrations import run_startup_migrations
@@ -79,7 +79,8 @@ app.include_router(visitors.router, prefix="/api/visitors", tags=["visitors"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(metrics.router, prefix="/api/admin/metrics", tags=["metrics"])
 app.include_router(payments.router, prefix="/api", tags=["payments"])
-app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=UPLOAD_DIR), name="uploads")
 
 
 @app.get("/")
