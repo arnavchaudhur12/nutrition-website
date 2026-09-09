@@ -23,6 +23,7 @@ from app.db.base import Base
 from app.db.migrations import run_startup_migrations
 from app.db.seed import seed_defaults
 from app.db.session import SessionLocal, engine
+from app.services.google_sheet_sync_scheduler import GoogleSheetSyncScheduler
 from app.services.monthly_invoice_scheduler import MonthlyInvoiceScheduler
 from app.services.razorpay_reconciliation_scheduler import RazorpayReconciliationScheduler
 from app.services.shipment_sync_scheduler import ShipmentSyncScheduler
@@ -37,6 +38,7 @@ with SessionLocal() as session:
 invoice_scheduler = MonthlyInvoiceScheduler()
 shipment_sync_scheduler = ShipmentSyncScheduler()
 razorpay_reconciliation_scheduler = RazorpayReconciliationScheduler()
+google_sheet_sync_scheduler = GoogleSheetSyncScheduler()
 
 
 @asynccontextmanager
@@ -44,9 +46,11 @@ async def lifespan(_: FastAPI):
     invoice_scheduler.start()
     shipment_sync_scheduler.start()
     razorpay_reconciliation_scheduler.start()
+    google_sheet_sync_scheduler.start()
     try:
         yield
     finally:
+        await google_sheet_sync_scheduler.stop()
         await razorpay_reconciliation_scheduler.stop()
         await shipment_sync_scheduler.stop()
         await invoice_scheduler.stop()

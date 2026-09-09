@@ -69,6 +69,7 @@ class Settings(BaseSettings):
     google_sheet_id: str = ""
     google_sheet_worksheet: str = ""
     google_service_account_file: str = ""
+    google_sheet_sync_interval_minutes: int = 10
     order_number_start: int = 13
 
     @model_validator(mode="after")
