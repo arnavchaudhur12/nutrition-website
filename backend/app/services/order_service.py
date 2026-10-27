@@ -5,6 +5,7 @@ from uuid import uuid4
 from typing import Any
 
 from fastapi import HTTPException, status
+from sqlalchemy import update
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -206,6 +207,9 @@ class OrderService:
         if current_user:
             self._ensure_order_owner(order, current_user)
 
+        if order.payment_status == "paid":
+            return {"success": True, "order_number": order.order_number}
+
         captured_payment_id = self.payment_service.get_captured_payment_id_for_order(
             payload.razorpay_order_id
         )
@@ -217,11 +221,18 @@ class OrderService:
             )
             return {"success": True, "order_number": order.order_number}
 
-        order.status = "payment_failed"
-        order.payment_status = "failed"
-        self.db.add(order)
+        # Claim the transition atomically: duplicate requests and a concurrent
+        # successful-payment callback must not send another failure email.
+        result = self.db.execute(
+            update(Order)
+            .where(Order.id == order.id, Order.payment_status.notin_(["paid", "failed"]))
+            .values(status="payment_failed", payment_status="failed")
+            .execution_options(synchronize_session=False)
+        )
         self.db.commit()
         self.db.refresh(order)
+        if result.rowcount != 1:
+            return {"success": True, "order_number": order.order_number}
 
         failure_reason = payload.description or payload.reason or "Payment failed or was cancelled."
         self.email_service.send_payment_failure(

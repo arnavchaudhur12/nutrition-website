@@ -262,6 +262,16 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
 
       const activeToken = token || undefined;
       const paymentOrder = await createPaymentOrder(payload, activeToken);
+      let paymentSucceeded = false;
+      let failureNotificationSent = false;
+      const notifyFailureOnce = (failure: Parameters<typeof notifyPaymentFailure>[0]) => {
+        if (paymentSucceeded || failureNotificationSent) return;
+        failureNotificationSent = true;
+        void notifyPaymentFailure(failure, activeToken).catch((error) => {
+          failureNotificationSent = false;
+          console.error("Unable to record payment failure", error);
+        });
+      };
 
       const razorpay = new RazorpayCheckout({
         key: razorpayKeyId,
@@ -283,12 +293,19 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
         },
         modal: {
           ondismiss: () => {
+            if (paymentSucceeded) return;
             setIsSubmitting(false);
             paymentFlowLock.current = false;
+            notifyFailureOnce({
+              razorpay_order_id: paymentOrder.order_id,
+              reason: "cancelled",
+              description: "Customer closed the payment window before completing payment."
+            });
             showStatus("error", "Payment was cancelled before completion.");
           }
         },
         handler: async (response) => {
+          paymentSucceeded = true;
           try {
             const result = await verifyPayment(response, activeToken);
             setIsSubmitting(false);
@@ -320,17 +337,17 @@ export function CheckoutSection({ products }: CheckoutSectionProps) {
       });
 
       razorpay.on("payment.failed", (response) => {
+        if (paymentSucceeded) return;
         setIsSubmitting(false);
         paymentFlowLock.current = false;
-        void notifyPaymentFailure(
+        notifyFailureOnce(
           {
             razorpay_order_id: response.error?.metadata?.order_id ?? paymentOrder.order_id,
             razorpay_payment_id: response.error?.metadata?.payment_id,
             reason: response.error?.reason,
             description: response.error?.description
-          },
-          activeToken
-        ).catch(() => undefined);
+          }
+        );
         showStatus(
           "error",
           response.error?.description ?? response.error?.reason ?? "Payment failed. Please try again."
